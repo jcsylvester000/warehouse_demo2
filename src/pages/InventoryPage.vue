@@ -44,14 +44,14 @@ const memberName = (m) => (m.kind === 'group' ? (store.groupById(m.ref_id) || {}
 
 /* ---------- add (single OR group) ---------- */
 const showAdd = ref(false); const addKind = ref('item');
-const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, is_tracked_asset: false });
+const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
 const groupForm = reactive({ id: null, name: '', description: '', members: [] });
-const asmForm = reactive({ id: null, name: '', assembly_type_id: '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
+const asmForm = reactive({ id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
 function openAdd() {
   addKind.value = 'item';
-  Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, is_tracked_asset: false });
+  Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
   Object.assign(groupForm, { id: null, name: '', description: '', members: [] });
-  Object.assign(asmForm, { id: null, name: '', assembly_type_id: (store.assemblyTypes[0] || {}).id || '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
+  Object.assign(asmForm, { id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: (store.assemblyTypes[0] || {}).id || '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
   showAdd.value = true;
 }
 function onMemberPick(id) {
@@ -64,7 +64,7 @@ const memberExclude = computed(() => [groupForm.id, ...groupForm.members.map((m)
 function saveAdd() {
   if (addKind.value === 'item') {
     if (!itemForm.name.trim()) return toast.error('Item name is required.');
-    if (itemForm.id) { store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, is_tracked_asset: itemForm.is_tracked_asset }); toast.success('Item updated.'); }
+    if (itemForm.id) { store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, assembly_only: itemForm.assembly_only }); toast.success('Item updated.'); }
     else { const it = store.addItem(itemForm); toast.success('Item ' + it.sku + ' added.'); }
   } else if (addKind.value === 'group') {
     if (!groupForm.name.trim() || !groupForm.members.length) return toast.error('Group name and at least one member are required.');
@@ -72,18 +72,26 @@ function saveAdd() {
     if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, members }); toast.success('Group updated.'); }
     else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, members }); toast.success('Group ' + g.sku + ' added (its own item).'); }
   } else {
-    if (!asmForm.name.trim() || !asmForm.composition.length) return toast.error('Assembly name and at least one part are required.');
-    const composition = JSON.parse(JSON.stringify(asmForm.composition));
-    const asset_defaults = JSON.parse(JSON.stringify(asmForm.asset_defaults));
-    if (asmForm.id) { store.updateAssemblyDef(asmForm.id, { name: asmForm.name, assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly updated.'); }
-    else { const a = store.addAssemblyDef({ name: asmForm.name, assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly ' + a.sku + ' defined.'); }
+    if (asmForm.assembly_kind === 'single') {
+      if (!asmForm.name.trim() || !asmForm.source_item_id) return toast.error('Assembly name and a source item are required.');
+      const fields = asmForm.fields.map((f) => String(f).trim()).filter(Boolean);
+      const payload = { name: asmForm.name, assembly_kind: 'single', source_item_id: asmForm.source_item_id, fields, composition: [], asset_defaults: {}, assembly_type_id: '' };
+      if (asmForm.id) { store.updateAssemblyDef(asmForm.id, payload); toast.success('Assembly updated.'); }
+      else { const a = store.addAssemblyDef(payload); toast.success('Assembly ' + a.sku + ' defined.'); }
+    } else {
+      if (!asmForm.name.trim() || !asmForm.composition.length) return toast.error('Assembly name and at least one part are required.');
+      const composition = JSON.parse(JSON.stringify(asmForm.composition));
+      const asset_defaults = JSON.parse(JSON.stringify(asmForm.asset_defaults));
+      if (asmForm.id) { store.updateAssemblyDef(asmForm.id, { name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly updated.'); }
+      else { const a = store.addAssemblyDef({ name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly ' + a.sku + ' defined.'); }
+    }
   }
   showAdd.value = false;
 }
 function editFromDetail() {
-  if (detailItem.value) { const it = detailItem.value; addKind.value = 'item'; Object.assign(itemForm, { id: it.id, name: it.name, vendor_id: it.vendor_id, item_type_id: it.item_type_id, cost: it.cost, qty_onhand: it.qty_onhand, threshold: it.threshold, bin_location: it.bin_location, is_active: it.is_active, is_tracked_asset: !!it.is_tracked_asset }); }
+  if (detailItem.value) { const it = detailItem.value; addKind.value = 'item'; Object.assign(itemForm, { id: it.id, name: it.name, vendor_id: it.vendor_id, item_type_id: it.item_type_id, cost: it.cost, qty_onhand: it.qty_onhand, threshold: it.threshold, bin_location: it.bin_location, is_active: it.is_active, assembly_only: !!it.assembly_only }); }
   else if (detailGroup.value) { const g = detailGroup.value; addKind.value = 'group'; Object.assign(groupForm, { id: g.id, name: g.name, description: g.description, members: JSON.parse(JSON.stringify(g.members)) }); }
-  else if (detailAssembly.value) { const a = detailAssembly.value; addKind.value = 'assembly'; Object.assign(asmForm, { id: a.id, name: a.name, assembly_type_id: a.assembly_type_id, composition: JSON.parse(JSON.stringify(a.composition || [])), asset_defaults: JSON.parse(JSON.stringify(a.asset_defaults || { cart_type: '', key_type: '', bp_device: '' })) }); }
+  else if (detailAssembly.value) { const a = detailAssembly.value; addKind.value = 'assembly'; Object.assign(asmForm, { id: a.id, name: a.name, assembly_kind: a.assembly_kind || 'cart', source_item_id: a.source_item_id || '', fields: JSON.parse(JSON.stringify(a.fields || [])), assembly_type_id: a.assembly_type_id, composition: JSON.parse(JSON.stringify(a.composition || [])), asset_defaults: JSON.parse(JSON.stringify(a.asset_defaults || { cart_type: '', key_type: '', bp_device: '' })) }); }
   showDetail.value = false; showAdd.value = true;
 }
 function deactivate() { if (detail.value) { store.deactivateItem(detail.value.id); toast.info(detail.value.name + ' deactivated.'); showDetail.value = false; } }
@@ -96,7 +104,8 @@ const asmPartName = (c) => (c.kind === 'group' ? (store.groupById(c.ref_id) || {
 /* ---------- build an assembly into ONE tracked cart asset (auto-fill + mandatory code) ---------- */
 const showBuild = ref(false);
 const build = reactive({ assembly_id: '', code: '', cart_color: '', tablet_number: '', fields: { cart_type: '', key_type: '', bp_device: '' } });
-function openBuild(defId) { const a = store.assemblyById(defId); const af = store.assemblyAutoFill(defId); Object.assign(build, { assembly_id: defId, code: '', cart_color: '', tablet_number: '', fields: { cart_type: af.cart_type || '', key_type: af.key_type || '', bp_device: af.bp_device || '' } }); showDetail.value = false; showBuild.value = true; }
+function blankFieldsFor(a) { const f = {}; (a && a.fields || []).forEach((k) => { f[k] = ''; }); return f; }
+function openBuild(defId) { const a = store.assemblyById(defId); if (!a) return; if (a.assembly_kind === 'single') { Object.assign(build, { assembly_id: defId, code: '', cart_color: '', tablet_number: '', fields: blankFieldsFor(a) }); } else { const af = store.assemblyAutoFill(defId); Object.assign(build, { assembly_id: defId, code: '', cart_color: '', tablet_number: '', fields: { cart_type: af.cart_type || '', key_type: af.key_type || '', bp_device: af.bp_device || '' } }); } showDetail.value = false; showBuild.value = true; }
 const buildDef = computed(() => store.assemblyById(build.assembly_id));
 function saveBuild() {
   const res = store.buildAssembly({ assembly_id: build.assembly_id, code: build.code, cart_color: build.cart_color, tablet_number: build.tablet_number, fields: build.fields });
@@ -262,17 +271,21 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
       </div>
       <div v-else-if="detailAssembly" class="space-y-4">
         <div class="flex flex-wrap gap-5 text-sm">
-          <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Cart type</div><div class="font-medium text-slate-700">{{ store.assemblyTypeName(detailAssembly.assembly_type_id) }}</div></div>
+          <div><div class="text-[10px] uppercase tracking-wide text-slate-400">{{ detailAssembly.assembly_kind==='single' ? 'Kind' : 'Cart type' }}</div><div class="font-medium text-slate-700">{{ detailAssembly.assembly_kind==='single' ? 'Single-item · ' + ((store.itemById(detailAssembly.source_item_id)||{}).name || '—') : store.assemblyTypeName(detailAssembly.assembly_type_id) }}</div></div>
           <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Unit cost (FIFO)</div><div class="font-semibold tabular-nums text-indigo-700">{{ money(store.assemblyUnitCost(detailAssembly.id)) }}</div></div>
           <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Buildable from stock</div><div class="font-semibold tabular-nums text-emerald-700">{{ store.assemblyBuildable(detailAssembly.id) }}</div></div>
           <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Built &amp; available</div><div class="font-semibold tabular-nums">{{ store.availableUnits(detailAssembly.id).length }}</div></div>
         </div>
-        <div class="rounded-xl border border-slate-200 overflow-hidden">
+        <div v-if="detailAssembly.assembly_kind!=='single'" class="rounded-xl border border-slate-200 overflow-hidden">
           <div class="px-4 py-2 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">Composition (groups + singles)</div>
           <table class="w-full text-sm"><tbody class="divide-y divide-slate-100">
             <tr v-for="(c,ci) in detailAssembly.composition" :key="ci"><td class="px-4 py-2 text-slate-700"><Badge :tone="c.kind==='group'?'emerald':'slate'">{{ c.kind }}</Badge> {{ c.kind==='group' ? (store.groupById(c.ref_id)||{}).name : (store.itemById(c.ref_id)||{}).name }}</td><td class="px-4 py-2 text-right text-slate-500 tabular-nums">×{{ c.qty }}</td></tr>
           </tbody></table>
           <div class="px-4 py-2 bg-violet-50/60 text-xs text-slate-600">Auto-fills on build → Cart Type <b>{{ (detailAssembly.asset_defaults||{}).cart_type || '—' }}</b> · Key <b>{{ (detailAssembly.asset_defaults||{}).key_type || '—' }}</b> · BP <b>{{ (detailAssembly.asset_defaults||{}).bp_device || '—' }}</b></div>
+        </div>
+        <div v-else class="rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-2 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">Single-item assembly — no parts to put together</div>
+          <div class="px-4 py-3 text-sm text-slate-600">Source item: <b>{{ (store.itemById(detailAssembly.source_item_id)||{}).name || '—' }}</b>. Assembling consumes one from inventory and records: <b>{{ (detailAssembly.fields||[]).join(', ') || '—' }}</b>.</div>
         </div>
         <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
           <Btn variant="secondary" size="sm" @click="editFromDetail">Edit assembly</Btn>
@@ -295,13 +308,13 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Item name *</span><input v-model="itemForm.name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <div class="text-sm"><span class="block text-slate-600 mb-1">Item number (SKU)</span><div class="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm flex items-center text-slate-500">{{ itemForm.id ? store.itemById(itemForm.id).sku : 'auto-generated (numbers only)' }}</div></div>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Vendor</span><select v-model="itemForm.vendor_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="">— none —</option><option v-for="v in store.vendors" :key="v.id" :value="v.id">{{ v.name }}</option></select></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">Item type</span><select v-model="itemForm.item_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="">— none —</option><option v-for="t in store.itemTypes" :key="t.id" :value="t.id">{{ t.name }}{{ t.trackable ? ' (tracked asset)' : '' }}</option></select></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">Item type</span><select v-model="itemForm.item_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="">— none —</option><option v-for="t in store.itemTypes" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Base cost</span><input v-model="itemForm.cost" type="number" step="0.01" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Opening qty</span><input v-model="itemForm.qty_onhand" type="number" :disabled="!!itemForm.id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Threshold</span><input v-model="itemForm.threshold" type="number" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Bin location</span><input v-model="itemForm.bin_location" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm flex items-center gap-2"><input v-model="itemForm.is_active" type="checkbox" /> Active</label>
-          <label class="text-sm flex items-center gap-2"><input v-model="itemForm.is_tracked_asset" type="checkbox" /> Tracked asset <ReqTag ver="V4" code="IT-2" text="V4 Item Types #2 — a Single can be a tracked asset (laptop, gameshow, tablet); becomes an asset when shipped solo." /></label>
+          <label class="text-sm flex items-center gap-2 col-span-2"><input v-model="itemForm.assembly_only" type="checkbox" /> This item can only be shipped as an assembly <ReqTag ver="V4" code="IT-2" text="Amendment — an assembly-only item (laptop, gameshow) can't be added to a Sales Order as a loose item; it must be assembled first. A Single is never an asset." /></label>
         </div>
 
         <!-- group -->
@@ -325,29 +338,54 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
 
         <!-- assembly -->
         <div v-else class="space-y-3">
-          <div class="grid grid-cols-2 gap-3">
-            <label class="text-sm"><span class="block text-slate-600 mb-1">Assembly name *</span><input v-model="asmForm.name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-            <label class="text-sm"><span class="block text-slate-600 mb-1">Cart type</span><select v-model="asmForm.assembly_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="t in store.assemblyTypes" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+          <div class="flex gap-2">
+            <button type="button" class="flex-1 h-9 rounded-lg text-xs font-semibold border" :class="asmForm.assembly_kind==='cart'?'bg-violet-600 text-white border-violet-600':'border-slate-300 text-slate-600'" @click="asmForm.assembly_kind='cart'">Cart assembly <span class="font-normal opacity-70">(built from parts)</span></button>
+            <button type="button" class="flex-1 h-9 rounded-lg text-xs font-semibold border inline-flex items-center justify-center gap-1" :class="asmForm.assembly_kind==='single'?'bg-violet-600 text-white border-violet-600':'border-slate-300 text-slate-600'" @click="asmForm.assembly_kind='single'">Single-item assembly <ReqTag ver="V4" code="AS-2" text="Amendment — two kinds of assembly: a cart (built from groups + singles) and a single-item assembly (laptop, gameshow) that has no parts to put together." /></button>
           </div>
-          <div>
-            <span class="block text-slate-600 mb-1 text-sm">Parts — groups &amp; singles <ReqTag ver="V4" code="AS-2" text="V4 Assemblies #2 — an assembly is built from group items and singles." /> <span class="text-xs text-slate-400">— search &amp; click to add</span></span>
-            <SearchPicker :options="store.catalogLite" :exclude-ids="asmPartExclude" placeholder="Search groups &amp; items…" @pick="onAsmPartPick" />
-          </div>
-          <div v-for="(c,idx) in asmForm.composition" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
-            <Badge :tone="c.kind==='group'?'emerald':'slate'">{{ c.kind }}</Badge>
-            <span class="flex-1">{{ asmPartName(c) }}</span>
-            <input v-model="c.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
-            <button class="text-rose-500 text-lg" @click="asmForm.composition.splice(idx,1)">&times;</button>
-          </div>
-          <p v-if="!asmForm.composition.length" class="text-xs text-slate-400">No parts yet — search above and click to add.</p>
-          <div class="rounded-lg bg-violet-50/60 ring-1 ring-violet-100 p-3">
-            <div class="text-xs font-semibold uppercase tracking-wide text-violet-700 mb-2">Asset auto-fill defaults <ReqTag ver="V4" code="AS-3" text="V4 Assemblies #3 — these defaults auto-fill the asset fields when a unit is built." /></div>
-            <div class="grid grid-cols-3 gap-3">
-              <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><input v-model="asmForm.asset_defaults.cart_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-              <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="asmForm.asset_defaults.key_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-              <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="asmForm.asset_defaults.bp_device" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+          <label class="text-sm block"><span class="block text-slate-600 mb-1">Assembly name *</span><input v-model="asmForm.name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+
+          <!-- CART assembly: parts + auto-fill defaults -->
+          <template v-if="asmForm.assembly_kind==='cart'">
+            <label class="text-sm block"><span class="block text-slate-600 mb-1">Cart type</span><select v-model="asmForm.assembly_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="t in store.assemblyTypes" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+            <div>
+              <span class="block text-slate-600 mb-1 text-sm">Parts — groups &amp; singles <ReqTag ver="V4" code="AS-2" text="V4 Assemblies #2 — a cart assembly is built from group items and singles." /> <span class="text-xs text-slate-400">— search &amp; click to add</span></span>
+              <SearchPicker :options="store.catalogLite" :exclude-ids="asmPartExclude" placeholder="Search groups &amp; items…" @pick="onAsmPartPick" />
             </div>
-          </div>
+            <div v-for="(c,idx) in asmForm.composition" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
+              <Badge :tone="c.kind==='group'?'emerald':'slate'">{{ c.kind }}</Badge>
+              <span class="flex-1">{{ asmPartName(c) }}</span>
+              <input v-model="c.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
+              <button class="text-rose-500 text-lg" @click="asmForm.composition.splice(idx,1)">&times;</button>
+            </div>
+            <p v-if="!asmForm.composition.length" class="text-xs text-slate-400">No parts yet — search above and click to add.</p>
+            <div class="rounded-lg bg-violet-50/60 ring-1 ring-violet-100 p-3">
+              <div class="text-xs font-semibold uppercase tracking-wide text-violet-700 mb-2">Asset auto-fill defaults <ReqTag ver="V4" code="AS-3" text="V4 Assemblies #3 — these defaults auto-fill the asset fields when a unit is built." /></div>
+              <div class="grid grid-cols-3 gap-3">
+                <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><input v-model="asmForm.asset_defaults.cart_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+                <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="asmForm.asset_defaults.key_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+                <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="asmForm.asset_defaults.bp_device" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+              </div>
+            </div>
+          </template>
+
+          <!-- SINGLE-ITEM assembly: source item + info fields (no parts to assemble) -->
+          <template v-else>
+            <label class="text-sm block"><span class="block text-slate-600 mb-1">Source item — must be an assembly-only item *</span>
+              <select v-model="asmForm.source_item_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm">
+                <option value="">— choose the raw item —</option>
+                <option v-for="it in store.items.filter(i=>i.assembly_only)" :key="it.id" :value="it.id">{{ it.name }} ({{ it.sku }})</option>
+              </select>
+            </label>
+            <p class="text-[11px] text-slate-500">No parts to put together — assembling just records the unit's info (RAM, make, price, …). One unit consumes one source item from inventory.</p>
+            <div>
+              <span class="block text-slate-600 mb-1 text-sm">Info fields captured at assembly</span>
+              <div v-for="(f,idx) in asmForm.fields" :key="idx" class="flex items-center gap-2 mb-2">
+                <input v-model="asmForm.fields[idx]" placeholder="e.g. RAM" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" />
+                <button class="text-rose-500 text-lg" @click="asmForm.fields.splice(idx,1)">&times;</button>
+              </div>
+              <button type="button" class="text-xs font-semibold text-indigo-600 hover:underline" @click="asmForm.fields.push('')">+ Add field</button>
+            </div>
+          </template>
         </div>
       </div>
       <template #footer><Btn variant="secondary" @click="showAdd=false">Cancel</Btn><Btn @click="saveAdd">Save</Btn></template>
@@ -375,11 +413,13 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
       <template #footer><Btn variant="secondary" @click="showLow=false">Close</Btn><Btn v-if="store.lowStockList.length" @click="orderAllLow">Order all low stock →</Btn></template>
     </Modal>
 
-    <!-- build assembly (one tracked cart asset) -->
-    <Modal v-if="showBuild && buildDef" :title="'Build ' + buildDef.name" sub="Consumes the parts and creates ONE tracked cart asset. Cart Code is required; asset fields auto-fill." @close="showBuild=false">
+    <!-- build assembly (one tracked unit) -->
+    <Modal v-if="showBuild && buildDef" :title="'Build ' + buildDef.name" :sub="buildDef.assembly_kind==='single' ? 'Single-item assembly — enter the unit info. Consumes 1 from stock and creates ONE tracked unit. Unit Code is required.' : 'Consumes the parts and creates ONE tracked cart asset. Cart Code is required; asset fields auto-fill.'" @close="showBuild=false">
       <div class="space-y-3">
         <div class="rounded-lg bg-slate-50 ring-1 ring-slate-100 p-3 text-xs text-slate-600">Buildable now: <b>{{ store.assemblyBuildable(buildDef.id) }}</b> · Unit cost (FIFO incl. landed): <b>{{ money(store.assemblyUnitCost(buildDef.id)) }}</b></div>
-        <div class="grid grid-cols-2 gap-3">
+
+        <!-- CART build -->
+        <div v-if="buildDef.assembly_kind!=='single'" class="grid grid-cols-2 gap-3">
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Code <span class="text-rose-500">*</span> <ReqTag ver="V4" code="AS-4" text="V4 Assemblies #4 — Cart Code is mandatory and the unit carries all asset info." /></span><input v-model="build.code" placeholder="e.g. CART-V-0002" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Color</span><input v-model="build.cart_color" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><input v-model="build.fields.cart_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
@@ -387,9 +427,16 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="build.fields.bp_device" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Tablet Number</span><input v-model="build.tablet_number" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         </div>
-        <p class="text-[11px] text-slate-500">Facility &amp; Regional are set later, when the cart ships out on a Sales Order. <ReqTag ver="V4" code="AS-5" text="V4 Assemblies #5 — facility/regional are filled at ship-out, not at build." /></p>
+
+        <!-- SINGLE-ITEM build (no parts; just unit info) -->
+        <div v-else class="grid grid-cols-2 gap-3">
+          <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Unit Code <span class="text-rose-500">*</span> <ReqTag ver="V4" code="AS-4" text="V4 Assemblies #4 — a unit code / asset tag is mandatory; the unit carries all its info." /></span><input v-model="build.code" placeholder="e.g. LAP-0003" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+          <label v-for="(v,k) in build.fields" :key="k" class="text-sm"><span class="block text-slate-600 mb-1">{{ k }}</span><input v-model="build.fields[k]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        </div>
+
+        <p class="text-[11px] text-slate-500"><template v-if="buildDef.assembly_kind==='single'">Assigned to an employee later, when the unit ships out on a Sales Order.</template><template v-else>Facility &amp; Regional are set later, when the cart ships out on a Sales Order.</template> <ReqTag ver="V4" code="AS-5" text="V4 Assemblies #5 — assignment auto-fills at ship-out (carts → facility + Regional; laptops/gameshows → the employee)." /></p>
       </div>
-      <template #footer><Btn variant="secondary" @click="showBuild=false">Cancel</Btn><Btn variant="success" @click="saveBuild">Build cart</Btn></template>
+      <template #footer><Btn variant="secondary" @click="showBuild=false">Cancel</Btn><Btn variant="success" @click="saveBuild">{{ buildDef.assembly_kind==='single' ? 'Build unit' : 'Build cart' }}</Btn></template>
     </Modal>
 
     <!-- edit built cart -->

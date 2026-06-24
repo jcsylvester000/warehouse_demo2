@@ -109,22 +109,28 @@ console.log('\n=== JOURNEY 2: Sales Order — ship, shortage→backorder, employ
   ok('back order carries the shortfall qty (5)', r.backorder && r.backorder.items[0].qty === 5, r.backorder && r.backorder.items[0].qty);
   ok('cart stock fully drained by partial ship', onhand('i-cart') === 0, 'got ' + onhand('i-cart'));
 
-  // employee assignment on laptop ship
+  // Amendment: a raw laptop is ASSEMBLY-ONLY — it can't ship loose; only an assembled unit can.
+  ok('laptop item is assembly-only', s.itemAssemblyOnly('i-laptop') === true);
+  ok('a single is never an asset (itemIsAsset always false)', s.itemIsAsset('i-laptop') === false);
+  ok('assembly-only laptop is excluded from the SO loose picker', !s.catalogShip.some((c) => c.id === 'i-laptop'));
+  // assemble a single-item laptop unit (consumes 1 from stock), then ship the unit to an employee
   const lapBefore = onhand('i-laptop'), uaBefore = s.userAssets.length;
+  const built = s.buildAssembly({ assembly_id: 'asm-laptop', code: 'LAP-T-1', fields: { 'RAM': '16 GB', 'Make / Company': 'Dell', 'Price': '935', 'Serial No.': 'SER-T1' } });
+  ok('assembling a single-item laptop consumes 1 from stock', !built.error && onhand('i-laptop') === lapBefore - 1, built.error || ('' + onhand('i-laptop')));
+  ok('built laptop lands in the warehouse as one asset unit', s.availableUnits('asm-laptop').some((u) => u.id === built.cart.id));
   const lapSO = {
     id: 'so-lap', so_number: s.nextSoNumber(), recipient_type: 'employee', recipient_id: 'u-carl', ship_to_type: 'facility', regional_id: null, facility_id: 'f-maple',
     order_date: '2026-06-16', expected_date: '', delivery_method: 'Courier', shipping_address: 'Maple', shipping_cost: 0, landed_costs: [], status: 'in_progress', notes: '', backorder_of: null, attachments: [], groups: [],
-    items: [{ kind: 'item', vendor_item_id: 'i-laptop', name: 'Dell Latitude Laptop', facility_id: 'f-maple', qty: 1, qty_shipped: 0, shipped_cost_total: 0, unit_cost: 900 }],
+    items: [{ kind: 'assembly', assembly_id: 'asm-laptop', name: 'Dell Latitude Laptop', facility_id: 'f-maple', qty: 1, qty_shipped: 0 }],
   };
   s.salesOrders.unshift(lapSO);
-  s.shipSO(lapSO, [{ idx: 0, qty: 1, employee_id: 'u-carl' }], []);
-  ok('laptop stock -1', onhand('i-laptop') === lapBefore - 1);
-  ok('user asset created on laptop ship', s.userAssets.length === uaBefore + 1 && s.userAssets[0].item_type === 'Laptop', 'count ' + s.userAssets.length);
-  ok('assigned to the chosen employee (Carl Chen)', s.userAssets[0].user === 'Carl Chen', s.userAssets[0].user);
+  s.shipSO(lapSO, [{ idx: 0, unit_ids: [built.cart.id], employee_id: 'u-carl' }], []);
+  ok('shipping the laptop assembly assigns the unit to the employee (Carl Chen)', s.userAssets.length === uaBefore + 1 && s.userAssets[0].user === 'Carl Chen', 'count ' + s.userAssets.length);
+  ok('the shipped laptop unit leaves the warehouse pool', !s.availableUnits('asm-laptop').some((u) => u.id === built.cart.id));
 
-  // reversing a laptop shipment must also unwind the employee asset, else it is double-counted
+  // reversing the shipment returns the unit to the warehouse and unwinds the employee assignment
   s.reverseShip(lapSO);
-  ok('reverse restores laptop stock', onhand('i-laptop') === lapBefore, `${onhand('i-laptop')} vs ${lapBefore}`);
+  ok('reverse returns the laptop unit to the warehouse', s.availableUnits('asm-laptop').some((u) => u.id === built.cart.id));
   ok('reverse removes the employee asset (no double-count)', s.userAssets.length === uaBefore, 'count ' + s.userAssets.length);
 }
 

@@ -16,17 +16,18 @@ const INV=fs.readFileSync('src/pages/InventoryPage.vue','utf8'), PO=fs.readFileS
 console.log('\n=== ITEM TYPES (supervisor: Single / Group / Assembly) ===');
 ok('IT-1','three item types exist: Single, Group, Assembly', ['item','group','assembly'].every(k=>s.catalog.some(c=>c.kind===k)));
 ok('IT-1','Add screen offers all three kinds', INV.includes(">Single item<") && INV.includes(">Group<") && INV.includes(">Assembly "));
-ok('IT-2','a Single can be flagged a tracked asset (UI)', INV.includes('itemForm.is_tracked_asset'));
-ok('IT-2','laptops, gameshows AND tablets are assets; a cable is not', s.itemIsAsset('i-laptop')&&s.itemIsAsset('i-gameshow')&&s.itemIsAsset('i-tab')&&s.itemIsAsset('i-cable-usb')===false);
+ok('IT-2','an item can be flagged assembly-only (UI)', INV.includes('itemForm.assembly_only'));
+ok('IT-2','laptops & gameshows are assembly-only (never standalone assets); a cable is neither', s.itemAssemblyOnly('i-laptop')&&s.itemAssemblyOnly('i-gameshow')&&s.itemIsAsset('i-laptop')===false&&s.itemAssemblyOnly('i-cable-usb')===false);
 { // IT-3 ship-out minting; IT-4 no per-part asset; IT-5 build removes parts + 1 asset
   const taB=s.trackedAssets.length;
   const po=s.purchaseOrders.find(p=>p.id==='po-192');
   s.receivePO(po, po.items.map(l=>({id:l.id, qty:(l.qty-(l.qty_received||0))})), 0, null);
   ok('IT-3','receiving an asset single mints NO asset (moved off receive)', s.trackedAssets.length===taB);
-  const so={id:'soA', so_number:s.nextSoNumber(), recipient_type:'employee', recipient_id:'u-dana', ship_to_type:'facility', regional_id:null, facility_id:'f-oak', order_date:'2026-06-16', expected_date:'', delivery_method:'Courier', shipping_address:'Oak', shipping_cost:0, landed_costs:[], status:'in_progress', notes:'', backorder_of:null, attachments:[], groups:[], items:[{kind:'item', vendor_item_id:'i-gameshow', name:'Trivia Gameshow Console', facility_id:'f-oak', qty:1, qty_shipped:0, shipped_cost_total:0, unit_cost:400}]};
-  s.salesOrders.unshift(so); const taB2=s.trackedAssets.length, uaB=s.userAssets.length;
-  s.shipSO(so,[{idx:0,qty:1,employee_id:'u-dana'}],[]);
-  ok('IT-3','an asset single shipped out solo becomes a tracked asset, assigned', s.trackedAssets.length===taB2+1 && s.userAssets.length===uaB+1 && s.userAssets[0].user==='Dana White');
+  const built0=s.buildAssembly({assembly_id:'asm-gameshow', code:'GS-S-1', fields:{'Make / Company':'TriviaCo','Price':'415','Serial No.':'GS-S1'}});
+  const so={id:'soA', so_number:s.nextSoNumber(), recipient_type:'employee', recipient_id:'u-dana', ship_to_type:'facility', regional_id:null, facility_id:'f-oak', order_date:'2026-06-16', expected_date:'', delivery_method:'Courier', shipping_address:'Oak', shipping_cost:0, landed_costs:[], status:'in_progress', notes:'', backorder_of:null, attachments:[], groups:[], items:[{kind:'assembly', assembly_id:'asm-gameshow', name:'Trivia Gameshow Console', facility_id:'f-oak', qty:1, qty_shipped:0}]};
+  s.salesOrders.unshift(so); const uaB=s.userAssets.length;
+  s.shipSO(so,[{idx:0,unit_ids:[built0.cart.id],employee_id:'u-dana'}],[]);
+  ok('IT-3','a single-item assembly shipped to an employee is assigned to them', s.userAssets.length===uaB+1 && s.userAssets[0].user==='Dana White');
   const taPre=s.trackedAssets.length, tabPre=onhand('i-tab2'), bpPre=onhand('i-bpdev');
   const b=s.buildAssembly({assembly_id:'asm-vs8', code:'CART-V-T1'});
   ok('IT-5','assembling creates exactly ONE asset and removes the parts', !!b.cart && onhand('i-tab2')===tabPre-1 && onhand('i-bpdev')===bpPre-1);

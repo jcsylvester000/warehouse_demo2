@@ -11,3 +11,6 @@ dist-ssr
 .DS_Store
 .vite
 .netlify
+
+# vite temp config artifacts
+vite.config.js.timestamp-*

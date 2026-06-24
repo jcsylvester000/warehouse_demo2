@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { uid } from '../src/utils/format.js';
 
-const SKEY = 'carease_wms_app_v4';
+const SKEY = 'carease_wms_app_v5';
 export const TODAY = '2026-06-16';
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -215,7 +215,10 @@ function seed() {
   db.carts.push(
     { id: 'c-2', code: 'CART-A-0189', cart_type: 'Standard', status: 'Available', location: 'Warehouse', facility_id: null, cost: 0, components: [] },
     { id: 'c-3', code: 'CART-V-0001', assembly_id: 'asm-vs8', cart_type: 'CTA Cart', key_type: 'CTA Key', bp_device: 'VS8', cart_color: 'Graphite', tablet_number: 'TBL-0001', status: 'Assigned', location: 'Facility', facility_id: 'f-maple', regional_id: 'reg-rosa', cost: 255.5, components: [{ vendor_item_id: 'i-bpdev', name: 'VS8 BP Device', qty: 1, unit_cost: 210 }, { vendor_item_id: 'i-bphose', name: 'BP Hose', qty: 1, unit_cost: 11.5 }, { vendor_item_id: 'i-spo2', name: 'SPO2 Sensor', qty: 1, unit_cost: 34 }] },
-    { id: 'c-4', code: 'CART-E-0001', assembly_id: 'asm-edan', cart_type: 'EDAN Cart', key_type: 'EDAN Key', bp_device: '—', cart_color: 'White', tablet_number: 'TBL-0002', status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: 512, components: [{ vendor_item_id: 'i-edancart', name: 'EDAN Cart Frame', qty: 1, unit_cost: 470 }, { vendor_item_id: 'i-key', name: 'CTA Cart Key', qty: 1, unit_cost: 9 }, { vendor_item_id: 'i-basket2', name: 'Supply Basket (Large)', qty: 1, unit_cost: 33 }] },
+    { id: 'c-4', code: 'CART-E-0001', assembly_id: 'asm-edan', unit_kind: 'cart', cart_type: 'EDAN Cart', key_type: 'EDAN Key', bp_device: '—', cart_color: 'White', tablet_number: 'TBL-0002', status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: 512, components: [{ vendor_item_id: 'i-edancart', name: 'EDAN Cart Frame', qty: 1, unit_cost: 470 }, { vendor_item_id: 'i-key', name: 'CTA Cart Key', qty: 1, unit_cost: 9 }, { vendor_item_id: 'i-basket2', name: 'Supply Basket (Large)', qty: 1, unit_cost: 33 }] },
+    { id: 'u-lap-1', code: 'LAP-0001', assembly_id: 'asm-laptop', unit_kind: 'single', cart_type: 'Dell Latitude Laptop', fields: { 'RAM': '16 GB', 'Make / Company': 'Dell', 'Price': '935', 'Serial No.': 'DL7420-0001' }, status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: 935, components: [{ vendor_item_id: 'i-laptop', name: 'Dell Latitude Laptop', qty: 1, unit_cost: 935 }] },
+    { id: 'u-lap-2', code: 'LAP-0002', assembly_id: 'asm-laptop', unit_kind: 'single', cart_type: 'Dell Latitude Laptop', fields: { 'RAM': '32 GB', 'Make / Company': 'Dell', 'Price': '935', 'Serial No.': 'DL7420-0002' }, status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: 935, components: [{ vendor_item_id: 'i-laptop', name: 'Dell Latitude Laptop', qty: 1, unit_cost: 935 }] },
+    { id: 'u-gs-1', code: 'GS-0001', assembly_id: 'asm-gameshow', unit_kind: 'single', cart_type: 'Trivia Gameshow Console', fields: { 'Make / Company': 'TriviaCo', 'Price': '415', 'Serial No.': 'GS9000-0001' }, status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: 415, components: [{ vendor_item_id: 'i-gameshow', name: 'Trivia Gameshow Console', qty: 1, unit_cost: 415 }] },
   );
   db.trackedAssets.push(
     { id: uid('ta'), item: 'HP ProBook Laptop', item_type: 'Laptop', asset_tag: 'LAP-A-2211', serial: 'HP-9001', status: 'In warehouse', received_at: '2026-06-10', po: 'opening' },
@@ -255,15 +258,20 @@ function seed() {
     { id: 'at-accutor', name: 'Accutor cart' },
   ];
   db.assemblies = [
-    { id: 'asm-vs8', sku: '100027', name: 'VS8 Cart', assembly_type_id: 'at-vs8', is_active: true, is_assembly: true,
+    { id: 'asm-vs8', sku: '100027', name: 'VS8 Cart', assembly_kind: 'cart', assembly_type_id: 'at-vs8', is_active: true, is_assembly: true,
       composition: [{ kind: 'group', ref_id: 'g-cta', qty: 1 }, { kind: 'group', ref_id: 'g-vs8bp', qty: 1 }, { kind: 'item', ref_id: 'i-tab2', qty: 1 }],
       asset_defaults: { cart_type: 'CTA Cart', key_type: 'CTA Key', bp_device: 'VS8' } },
-    { id: 'asm-edan', sku: '100028', name: 'EDAN Cart', assembly_type_id: 'at-edan', is_active: true, is_assembly: true,
+    { id: 'asm-edan', sku: '100028', name: 'EDAN Cart', assembly_kind: 'cart', assembly_type_id: 'at-edan', is_active: true, is_assembly: true,
       composition: [{ kind: 'group', ref_id: 'g-cta', qty: 1 }, { kind: 'item', ref_id: 'i-tab', qty: 1 }],
       asset_defaults: { cart_type: 'EDAN Cart', key_type: 'EDAN Key', bp_device: '—' } },
-    { id: 'asm-accutor', sku: '100029', name: 'Accutor Cart', assembly_type_id: 'at-accutor', is_active: true, is_assembly: true,
+    { id: 'asm-accutor', sku: '100029', name: 'Accutor Cart', assembly_kind: 'cart', assembly_type_id: 'at-accutor', is_active: true, is_assembly: true,
       composition: [{ kind: 'group', ref_id: 'g-cta', qty: 1 }, { kind: 'item', ref_id: 'i-accutor', qty: 1 }],
       asset_defaults: { cart_type: 'Accutor Cart', key_type: 'Accutor Key', bp_device: 'Accutor' } },
+    // Single-item assemblies (no parts to put together) — assembling = entering the unit's info.
+    { id: 'asm-laptop', sku: '100030', name: 'Dell Latitude Laptop', assembly_kind: 'single', source_item_id: 'i-laptop', assembly_type_id: '', is_active: true, is_assembly: true, composition: [], asset_defaults: {}, fields: ['RAM', 'Make / Company', 'Price', 'Serial No.'] },
+    { id: 'asm-laptop2', sku: '100031', name: 'HP ProBook Laptop', assembly_kind: 'single', source_item_id: 'i-laptop2', assembly_type_id: '', is_active: true, is_assembly: true, composition: [], asset_defaults: {}, fields: ['RAM', 'Make / Company', 'Price', 'Serial No.'] },
+    { id: 'asm-gameshow', sku: '100032', name: 'Trivia Gameshow Console', assembly_kind: 'single', source_item_id: 'i-gameshow', assembly_type_id: '', is_active: true, is_assembly: true, composition: [], asset_defaults: {}, fields: ['Make / Company', 'Price', 'Serial No.'] },
+    { id: 'asm-trivia', sku: '100033', name: 'Trivia Machine (Portable)', assembly_kind: 'single', source_item_id: 'i-trivia', assembly_type_id: '', is_active: true, is_assembly: true, composition: [], asset_defaults: {}, fields: ['Make / Company', 'Price', 'Serial No.'] },
   ];
   db.poDraft = [];
   db.items.push(
@@ -306,11 +314,13 @@ function seed() {
     { id: 'n-9', kind: 'assets', title: 'Asset assigned', body: 'Dell Latitude Laptop assigned to Carl Chen (Maple SNF).', at: '2026-06-10T10:20:00', read: true, route: '/assets' },
     { id: 'n-10', kind: 'inventory', title: 'Low stock alert', body: 'Sanitizing Wipes (tub) is low (25 of 40 threshold).', at: '2026-06-09T16:00:00', read: false, route: '/inventory' },
   ];
-  db.counters.sku = 100032; db.counters.po = 194; db.counters.so = 153; db.counters.cart = 193; db.counters.asset = 2212; db.counters.ret = 41; db.counters.vbill = 1;
+  db.counters.sku = 100034; db.counters.po = 194; db.counters.so = 153; db.counters.cart = 193; db.counters.asset = 2212; db.counters.ret = 41; db.counters.vbill = 1;
 
   // normalize qty_onhand/qty_available from lots
-  const ASSET_TYPES = ['t-laptop', 't-trivia', 't-gameshow', 't-tablet'];
-  db.items.forEach((it) => { const q = it.lots.reduce((s, l) => s + l.qty, 0); it.qty_onhand = q; it.qty_available = q; if (it.is_tracked_asset === undefined) it.is_tracked_asset = ASSET_TYPES.includes(it.item_type_id); });
+  // Amendment: ONLY assemblies are assets. Raw laptops / trivia / gameshows are "assembly-only" parts:
+  // they sit in inventory and can only leave the warehouse after being assembled into a tracked unit.
+  const ASSEMBLY_ONLY_TYPES = ['t-laptop', 't-trivia', 't-gameshow'];
+  db.items.forEach((it) => { const q = it.lots.reduce((s, l) => s + l.qty, 0); it.qty_onhand = q; it.qty_available = q; if (it.assembly_only === undefined) it.assembly_only = ASSEMBLY_ONLY_TYPES.includes(it.item_type_id); it.is_tracked_asset = false; });
   return db;
 }
 
@@ -353,11 +363,14 @@ export const useWarehouseStore = defineStore('warehouse', {
     // --- V4 Item Types: assemblies + tracked-asset helpers ---
     assemblyById(s) { const m = new Map((s.assemblies || []).map((a) => [a.id, a])); return (id) => m.get(id); },
     assemblyTypeName(s) { return (id) => ((s.assemblyTypes || []).find((t) => t.id === id) || {}).name || '—'; },
-    itemIsAsset() { return (id) => { const it = this.itemById(id); return !!(it && it.is_tracked_asset); }; },
+    itemAssemblyOnly() { return (id) => { const it = this.itemById(id); return !!(it && it.assembly_only); }; },
+    itemIsAsset() { return () => false; }, // amendment: a single is never an asset
+    isSingleAssembly(s) { return (defId) => { const a = this.assemblyById(defId); return !!(a && a.assembly_kind === 'single'); }; },
     expandAssembly() {
       return (defId, mult = 1) => {
         const a = this.assemblyById(defId); const out = {};
         if (!a) return out;
+        if (a.assembly_kind === 'single') { if (a.source_item_id) out[a.source_item_id] = (out[a.source_item_id] || 0) + mult; return out; }
         (a.composition || []).forEach((m) => {
           if (m.kind === 'group') { const sub = this.expandGroup(m.ref_id, mult * m.qty); Object.keys(sub).forEach((k) => { out[k] = (out[k] || 0) + sub[k]; }); }
           else { out[m.ref_id] = (out[m.ref_id] || 0) + m.qty * mult; }
@@ -384,8 +397,11 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     // SO picker also includes assemblies (built carts you can ship). PO picker keeps catalogLite (parts only).
     catalogShip(s) {
+      // assembly-only items (raw laptops/gameshows) cannot be shipped loose — only their assembled units can.
+      const singles = s.items.filter((i) => !i.assembly_only).map((i) => ({ id: i.id, sku: i.sku, name: i.name, is_group: false, on_hand: i.qty_onhand }));
+      const grps = s.groups.map((g) => ({ id: g.id, sku: g.sku, name: g.name, is_group: true, on_hand: this.groupOnHand(g.id) }));
       const asms = (s.assemblies || []).map((a) => ({ id: a.id, sku: a.sku, name: a.name, is_group: false, is_assembly: true, on_hand: this.availableUnits(a.id).length }));
-      return [...this.catalogLite, ...asms];
+      return [...singles, ...grps, ...asms];
     },
     // R3 SO #1: one unified recipient list (facility / regional / provider / employee)
     recipients(s) {
@@ -466,9 +482,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
 
     // ---- Inventory items / groups ----
-    addItem({ name, vendor_id, item_type_id, cost, qty_onhand, threshold, bin_location, is_active, is_tracked_asset }) {
+    addItem({ name, vendor_id, item_type_id, cost, qty_onhand, threshold, bin_location, is_active, assembly_only }) {
       const q = Number(qty_onhand) || 0;
-      const it = { id: uid('i'), sku: this.nextSku(), name, vendor_id: vendor_id || '', item_type_id: item_type_id || '', cost: Number(cost) || 0, threshold: Number(threshold) || 0, bin_location: bin_location || '', is_active: is_active !== false, is_tracked_asset: !!is_tracked_asset, lots: [] };
+      const it = { id: uid('i'), sku: this.nextSku(), name, vendor_id: vendor_id || '', item_type_id: item_type_id || '', cost: Number(cost) || 0, threshold: Number(threshold) || 0, bin_location: bin_location || '', is_active: is_active !== false, assembly_only: !!assembly_only, is_tracked_asset: false, lots: [] };
       if (q > 0) it.lots.push({ id: uid('lot'), qty: q, unit_cost: Number(cost) || 0, landed: 0, received_at: TODAY, ref: 'opening' });
       it.qty_onhand = q; it.qty_available = q; this.items.unshift(it); return it;
     },
@@ -570,12 +586,23 @@ export const useWarehouseStore = defineStore('warehouse', {
         const l = so.items[row.idx]; if (!l) return;
         // V4 SO-1 + AS-5: an assembly line ships specific built units (no stock decrement; parts consumed at build).
         if (l.kind === 'assembly') {
+          const a = this.assemblyById(l.assembly_id);
+          const isSingle = a && a.assembly_kind === 'single';
+          // AS-5: assignment auto-fills at ship-out, by type. Carts -> facility + Regional.
+          // Single-item assemblies (laptops/gameshows) -> the employee they're shipped to (for retrieval later).
+          const emp = isSingle ? (this.userById(row.employee_id) || (so.recipient_type === 'employee' ? this.userById(so.recipient_id) : null)) : null;
           const remaining = (l.qty || 0) - (l.qty_shipped || 0);
           let shipped = 0;
           (row.unit_ids || []).forEach((cid) => {
             if (shipped >= remaining) return;
             const cart = this.carts.find((c) => c.id === cid && c.location === 'Warehouse'); if (!cart) return;
-            cart.location = 'Facility'; cart.status = 'Assigned'; cart.facility_id = l.facility_id || so.facility_id; cart.regional_id = so.regional_id || (this.facilityById(cart.facility_id) || {}).regional_id || null; cart.so = so.so_number;
+            if (isSingle) {
+              cart.location = 'Assigned'; cart.status = 'Assigned'; cart.facility_id = null; cart.so = so.so_number;
+              cart.assigned_user = emp ? emp.name : '';
+              if (emp) this.userAssets.unshift({ id: uid('ua'), user: emp.name, facility: emp.facility, item: (a ? a.name : cart.cart_type), item_type: cart.cart_type, asset_tag: cart.code, serial: (cart.fields && (cart.fields['Serial No.'] || cart.fields['Serial'])) || '', cost: Number(cart.cost) || 0, assigned: TODAY, status: 'Active', so: so.so_number });
+            } else {
+              cart.location = 'Facility'; cart.status = 'Assigned'; cart.facility_id = l.facility_id || so.facility_id; cart.regional_id = so.regional_id || (this.facilityById(cart.facility_id) || {}).regional_id || null; cart.so = so.so_number;
+            }
             captured += Number(cart.cost) || 0;
             (l.shipped_units = l.shipped_units || []).push(cart.id);
             shipped += 1;
@@ -593,18 +620,7 @@ export const useWarehouseStore = defineStore('warehouse', {
           lineTotal += r.total; captured += r.total;
           r.lines.forEach((li) => l.shipped_detail.push({ vendor_item_id: e.vendor_item_id, qty: li.qty, unit_cost: li.unit_cost, landed: li.landed || 0 }));
           this.logStock(e.vendor_item_id, 'out', r.qty, 'SO Shipment', so.so_number, r.landedTotal ? ('incl landed $' + r.landedTotal) : null);
-          // V4 IT-3: an asset-flagged single becomes a tracked asset when shipped out (assigned to the chosen employee if any).
-          if (this.itemIsAsset(e.vendor_item_id)) {
-            const itm = this.itemById(e.vendor_item_id);
-            const u = row.employee_id ? this.userById(row.employee_id) : null;
-            const itype = this.typeName(itm ? itm.item_type_id : '');
-            for (let k = 0; k < r.qty; k++) {
-              this.counters.asset += 1;
-              const tag = 'AST-' + this.counters.asset;
-              this.trackedAssets.unshift({ id: uid('ta'), item: itm ? itm.name : l.name, item_type: itype, asset_tag: tag, serial: '', status: u ? 'Assigned' : 'Shipped', received_at: TODAY, po: 'SO ' + so.so_number, so: so.so_number });
-              if (u) this.userAssets.unshift({ id: uid('ua'), user: u.name, facility: u.facility, item: itm ? itm.name : l.name, item_type: itype, asset_tag: tag, serial: '', cost: r2(r.total / Math.max(1, r.qty)), assigned: TODAY, status: 'Active', so: so.so_number });
-            }
-          }
+          // Amendment: loose singles are never assets — no tracked-asset minting on ship. Assets exist only as assembled units.
         });
         l.qty_shipped = (l.qty_shipped || 0) + q;
         l.shipped_cost_total = r2((l.shipped_cost_total || 0) + lineTotal);
@@ -662,6 +678,8 @@ export const useWarehouseStore = defineStore('warehouse', {
       // unit is double-counted: it returns to inventory AND stays assigned to the employee.
       this.userAssets = this.userAssets.filter((a) => a.so !== so.so_number);
       this.trackedAssets = this.trackedAssets.filter((a) => a.so !== so.so_number);
+      // return any assembled units this shipment sent back into the warehouse, and clear their line tracking
+      (so.items || []).forEach((l) => { if (l.kind === 'assembly') { (l.shipped_units || []).forEach((cid) => { const c = this.carts.find((x) => x.id === cid); if (c) { c.location = 'Warehouse'; c.status = 'Available'; c.facility_id = null; c.regional_id = null; c.assigned_user = ''; c.so = null; } }); l.shipped_units = []; l.qty_shipped = 0; } });
       so.status = 'in_progress';
       // reversing restores the full order — drop any unshipped back orders it spawned (avoid phantom over-demand)
       this.salesOrders = this.salesOrders.filter((x) => !(x.backorder_of === so.so_number && (x.items || []).every((l) => (l.qty_shipped || 0) === 0)));
@@ -782,8 +800,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     confirmCartReceipt({ facility_id, received_on, bol, photos }) { const f = this.facilityById(facility_id); this.cartReceipts.unshift({ id: uid('rcpt'), facility_id, shipped_qty: f ? f.carts_needed : null, shipment_date: f ? f.cart_shipment_date : null, received_on, bol_name: bol, photos: (photos || []).slice() }); if (f) f.status = 'Received'; },
 
     /* ---- V4 Assemblies (Single / Group / Assembly model) ---- */
-    addAssemblyDef({ name, assembly_type_id, composition, asset_defaults }) {
-      const a = { id: uid('asm'), sku: this.nextSku(), name: name || 'New Assembly', assembly_type_id: assembly_type_id || '', composition: composition || [], asset_defaults: asset_defaults || {}, is_active: true, is_assembly: true };
+    addAssemblyDef({ name, assembly_kind, source_item_id, assembly_type_id, composition, asset_defaults, fields }) {
+      const a = { id: uid('asm'), sku: this.nextSku(), name: name || 'New Assembly', assembly_kind: assembly_kind || 'cart', source_item_id: source_item_id || '', assembly_type_id: assembly_type_id || '', composition: composition || [], asset_defaults: asset_defaults || {}, fields: fields || [], is_active: true, is_assembly: true };
       this.assemblies.unshift(a); return a;
     },
     updateAssemblyDef(id, patch) { const a = this.assemblyById(id); if (a) Object.assign(a, patch); },
@@ -793,15 +811,24 @@ export const useWarehouseStore = defineStore('warehouse', {
     // AS-1..7 + IT-5: consume the parts (FIFO incl landed) and create exactly ONE tracked cart asset. Code mandatory.
     buildAssembly({ assembly_id, code, cart_color, tablet_number, fields }) {
       const a = this.assemblyById(assembly_id); if (!a) return { error: 'Unknown assembly.' };
-      if (!code || !String(code).trim()) return { error: 'Cart Code is required.' };
+      const isSingle = a.assembly_kind === 'single';
+      // IT-4: a unit code/asset tag is mandatory for every assembled unit (cart or single-item).
+      if (!code || !String(code).trim()) return { error: isSingle ? 'Unit Code is required.' : 'Cart Code is required.' };
       const exp = this.expandAssembly(assembly_id, 1);
       for (const k of Object.keys(exp)) { const it = this.itemById(k); if (!it || (it.qty_onhand || 0) < exp[k]) return { error: 'Not enough ' + (it ? it.name : k) + ' in stock.' }; }
+      // marking assembled removes the parts from inventory (FIFO, landed rides along) and creates exactly ONE asset.
       let cost = 0; const comp = [];
       Object.keys(exp).forEach((k) => { const r = this.issueFIFO(k, exp[k]); const it = this.itemById(k); cost += r.total; comp.push({ vendor_item_id: k, name: it ? it.name : '', qty: exp[k], unit_cost: r2(r.total / Math.max(1, exp[k])) }); this.logStock(k, 'out', exp[k], 'Assembly build', String(code).trim(), null); });
       this.counters.cart += 1;
+      if (isSingle) {
+        // single-item assembly: no composition to pull from — just the unit's entered info (RAM, make, price, …).
+        const unit = { id: uid('cart'), code: String(code).trim(), assembly_id, unit_kind: 'single', cart_type: a.name, fields: { ...(fields || {}) }, status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, assigned_user: '', cost: r2(cost), components: comp };
+        this.carts.unshift(unit); this.logActivity('Assembled ' + a.name + ' · ' + unit.code);
+        return { cart: unit };
+      }
       const af = { ...(a.asset_defaults || {}), ...(fields || {}) };
-      const cart = { id: uid('cart'), code: String(code).trim(), assembly_id, cart_type: af.cart_type || this.assemblyTypeName(a.assembly_type_id), key_type: af.key_type || '', bp_device: af.bp_device || '', cart_color: cart_color || '', tablet_number: tablet_number || '', status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: r2(cost), components: comp };
-      this.carts.unshift(cart);
+      const cart = { id: uid('cart'), code: String(code).trim(), assembly_id, unit_kind: 'cart', cart_type: af.cart_type || this.assemblyTypeName(a.assembly_type_id), key_type: af.key_type || '', bp_device: af.bp_device || '', cart_color: cart_color || '', tablet_number: tablet_number || '', status: 'Available', location: 'Warehouse', facility_id: null, regional_id: null, cost: r2(cost), components: comp };
+      this.carts.unshift(cart); this.logActivity('Assembled ' + a.name + ' · ' + cart.code);
       return { cart };
     },
     editAssemblyUnit(cartId, patch) { const c = this.carts.find((x) => x.id === cartId); if (c) Object.assign(c, patch); return c; },

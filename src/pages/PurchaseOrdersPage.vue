@@ -111,8 +111,6 @@ const recvLandedTotal = computed(() => recvPO.value ? store.poLandedTotal(recvPO
 function openRecv(po) { recvPO.value = po; recvLines.value = po.items.map((l) => ({ id: l.id, name: l.name, is_group: l.kind === 'group', members: l.members || [], trackable: l.kind !== 'group' && store.isTrackableItem(l.vendor_item_id), ordered: l.qty, received: l.qty_received || 0, remaining: (l.qty || 0) - (l.qty_received || 0), qty: (l.qty || 0) - (l.qty_received || 0) })); showRecv.value = true; }
 const recvUnits = computed(() => recvLines.value.filter((l) => l.qty > 0).reduce((s, l) => s + (l.is_group ? (l.members || []).reduce((a, m) => a + (Number(m.per_group) || 0), 0) * Number(l.qty) : Number(l.qty)), 0));
 const landedPerUnitPreview = computed(() => recvUnits.value > 0 ? Math.round((recvLandedTotal.value / recvUnits.value) * 100) / 100 : 0);
-const trackableToReceive = computed(() => recvLines.value.filter((l) => l.trackable && l.qty > 0));
-const showAssetEntry = ref(false); const assetMap = reactive({});
 function proceedReceive() {
   const lines = recvLines.value.filter((l) => l.qty > 0);
   if (!lines.length) return toast.error('Nothing to receive.');
@@ -122,8 +120,8 @@ function commitReceive(entries) {
   const lines = recvLines.value.filter((l) => l.qty > 0).map((l) => ({ id: l.id, qty: Number(l.qty) }));
   const res = store.receivePO(recvPO.value, lines, recvLandedTotal.value, entries);
   lastResult.value = { ro: res.ro, billIds: res.billIds, po: recvPO.value.po_number, landedPerUnit: res.landedPerUnit, assets: res.assetsCreated.length, remaining: store.poRemaining(recvPO.value) };
-  toast.success('Received into ' + res.ro + (res.assetsCreated.length ? ' · ' + res.assetsCreated.length + ' asset(s) registered' : ''));
-  showRecv.value = false; showAssetEntry.value = false;
+  toast.success('Received into ' + res.ro + ' — items added to inventory.');
+  showRecv.value = false;
 }
 const showBills = ref(false); const showEmails = ref(false); const showDocs = ref(false);
 onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm(); d.forEach((id) => onPick(id)); } });
@@ -348,7 +346,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
     </Modal>
 
     <!-- receive -->
-    <Modal v-if="showRecv" :title="'Receive ' + (recvPO?recvPO.po_number:'')" sub="Landed cost (from the PO) spreads per unit; trackable items optionally prompt for asset info." wide @close="showRecv=false">
+    <Modal v-if="showRecv" :title="'Receive ' + (recvPO?recvPO.po_number:'')" sub="Landed cost (from the PO) spreads per unit. Items move straight into inventory — no asset prompt; asset info is captured later at assembly." wide @close="showRecv=false">
       <table class="w-full text-sm">
         <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-3 py-2">Item</th><th class="text-left px-3 py-2">Vendor</th><th class="text-right px-3 py-2">Ordered</th><th class="text-right px-3 py-2">Received</th><th class="text-right px-3 py-2">Remaining</th><th class="text-right px-3 py-2">Receive now</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
@@ -360,22 +358,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
       <template #footer><Btn variant="secondary" @click="showRecv=false">Cancel</Btn><Btn variant="success" @click="proceedReceive">Receive &amp; post</Btn></template>
     </Modal>
 
-    <!-- asset entry (optional, no auto-fill) -->
-    <Modal v-if="showAssetEntry" title="Enter asset info (optional)" sub="Trackable items received — record tag + serial if you have them. You can skip." wide @close="showAssetEntry=false">
-      <div class="space-y-4">
-        <div v-for="l in trackableToReceive" :key="l.id">
-          <div class="text-sm font-semibold text-slate-800 mb-1">{{ l.name }} <span class="text-xs font-normal text-slate-500">· {{ l.qty }} unit(s)</span></div>
-          <div class="space-y-2">
-            <div v-for="(a,idx) in assetMap[l.id]" :key="idx" class="flex gap-2 items-center">
-              <span class="text-xs text-slate-400 w-6">#{{ idx+1 }}</span>
-              <input v-model="a.asset_tag" placeholder="Asset tag (optional)" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" />
-              <input v-model="a.serial" placeholder="Serial (optional)" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" />
-            </div>
-          </div>
-        </div>
-      </div>
-      <template #footer><Btn variant="secondary" @click="commitReceive(null)">Skip — receive without asset info</Btn><Btn variant="success" @click="commitReceive(assetMap)">Save assets &amp; receive</Btn></template>
-    </Modal>
+<!-- Amendment: no asset-entry prompt at receiving — items move straight into inventory; asset info is entered later, at the assembly step. -->
 
     <!-- bills -->
     <Modal v-if="showBills" title="Vendor bills" sub="One bill per vendor on receiving (includes landed cost)." wide @close="showBills=false">

@@ -11,8 +11,8 @@ const onhand=(id)=>(s.itemById(id)||{}).qty_onhand;
 
 console.log('\n=== Item Types (IT-1, IT-2) ===');
 ok('IT-1','catalog exposes all three kinds: item, group, assembly', ['item','group','assembly'].every(k=>s.catalog.some(c=>c.kind===k)), [...new Set(s.catalog.map(c=>c.kind))].join(','));
-ok('IT-2','a Single can be a tracked asset (laptop=yes, gameshow=yes, tablet=yes)', s.itemIsAsset('i-laptop') && s.itemIsAsset('i-gameshow') && s.itemIsAsset('i-tab'));
-ok('IT-2','a cable is NOT a tracked asset', s.itemIsAsset('i-cable-usb')===false);
+ok('IT-2','a Single is NEVER an asset; laptops/gameshows are assembly-only', s.itemAssemblyOnly('i-laptop') && s.itemAssemblyOnly('i-gameshow') && s.itemIsAsset('i-laptop')===false);
+ok('IT-2','a normal part (cable) is neither an asset nor assembly-only', s.itemAssemblyOnly('i-cable-usb')===false && s.itemIsAsset('i-cable-usb')===false);
 
 console.log('\n=== Assemblies (AS-1..7, IT-4, IT-5) ===');
 ok('AS-1','cart types are a managed list (EDAN / VS8 / Accutor)', s.assemblyTypes.map(t=>t.name).join(',').includes('EDAN cart') && s.assemblyTypes.length>=3);
@@ -47,21 +47,24 @@ s.addAssemblyType('Custom cart'); ok('AS-1','new cart types can be added', s.ass
   ok('IT-4','building a cart does NOT mint separate per-part tracked assets', s.trackedAssets.length===before, 'delta='+(s.trackedAssets.length-before));
 }
 
-console.log('\n=== Asset at ship-out (IT-3) ===');
+console.log('\n=== Asset only at assembly + ship-out (IT-3) ===');
 {
-  // PO receive of an asset-flagged single must NOT mint a tracked asset (moved to ship-out)
-  const taB=s.trackedAssets.length;
-  const po=s.purchaseOrders.find(p=>p.id==='po-192'); // has gameshow (asset) not yet received
+  // receiving an assembly-only single just moves it into inventory — no asset, no prompt
+  const taB=s.trackedAssets.length, cartsB=s.carts.length;
+  const po=s.purchaseOrders.find(p=>p.id==='po-192'); // has gameshow (assembly-only) not yet received
   s.receivePO(po, po.items.map(l=>({id:l.id, qty:(l.qty-(l.qty_received||0))})), 0, null);
-  ok('IT-3','receiving an asset single on a PO mints NO tracked asset', s.trackedAssets.length===taB, 'delta='+(s.trackedAssets.length-taB));
-  // shipping an asset-flagged single to an employee mints a tracked asset + assigns it
+  ok('IT-3','receiving an assembly-only single mints NO asset (just inventory)', s.trackedAssets.length===taB && s.carts.length===cartsB, 'delta='+(s.trackedAssets.length-taB));
+  // assembling the single-item gameshow consumes 1 from stock and makes exactly one unit
+  const gsB=onhand('i-gameshow'), cartsB2=s.carts.length;
+  const built=s.buildAssembly({assembly_id:'asm-gameshow', code:'GS-T-1', fields:{'Make / Company':'TriviaCo','Price':'415','Serial No.':'GS-T1'}});
+  ok('IT-5','assembling a single-item gameshow: 1 from stock -> 1 unit', !built.error && onhand('i-gameshow')===gsB-1 && s.carts.length===cartsB2+1, built.error||'');
+  // shipping that unit to an employee assigns it to them
   const so={id:'so-z1', so_number:s.nextSoNumber(), recipient_type:'employee', recipient_id:'u-dana', ship_to_type:'facility', regional_id:null, facility_id:'f-oak', order_date:'2026-06-16', expected_date:'', delivery_method:'Courier', shipping_address:'Oak', shipping_cost:0, landed_costs:[], status:'in_progress', notes:'', backorder_of:null, attachments:[], groups:[],
-    items:[{kind:'item', vendor_item_id:'i-gameshow', name:'Trivia Gameshow Console', facility_id:'f-oak', qty:1, qty_shipped:0, shipped_cost_total:0, unit_cost:400}]};
+    items:[{kind:'assembly', assembly_id:'asm-gameshow', name:'Trivia Gameshow Console', facility_id:'f-oak', qty:1, qty_shipped:0}]};
   s.salesOrders.unshift(so);
-  const uaB=s.userAssets.length, taB2=s.trackedAssets.length;
-  s.shipSO(so,[{idx:0, qty:1, employee_id:'u-dana'}],[]);
-  ok('IT-3','shipping an asset single mints a tracked asset', s.trackedAssets.length===taB2+1);
-  ok('IT-3','shipping to an employee also assigns the asset to them', s.userAssets.length===uaB+1 && s.userAssets[0].user==='Dana White');
+  const uaB=s.userAssets.length;
+  s.shipSO(so,[{idx:0, unit_ids:[built.cart.id], employee_id:'u-dana'}],[]);
+  ok('IT-3','shipping a single-item assembly assigns the unit to the employee', s.userAssets.length===uaB+1 && s.userAssets[0].user==='Dana White');
 }
 
 console.log('\n=== SO ships a specific built unit / asset (SO-1) ===');

@@ -136,15 +136,18 @@ function openShip(so) {
   shipRows.value = so.items.map((l, idx) => {
     const remaining = (l.qty || 0) - (l.qty_shipped || 0); const avail = lineAvail(l);
     const is_assembly = l.kind === 'assembly';
-    const assignable = l.kind === 'group' ? (l.members || []).some((m) => store.isEmployeeAssignable(m.vendor_item_id)) : (l.kind === 'item' && store.itemIsAsset(l.vendor_item_id));
-    return { idx, name: l.name, is_group: l.kind === 'group', is_assembly, facility_id: l.facility_id, ordered: l.qty, remaining, avail, qty: Math.min(remaining, avail), assignable, employee_id: '', units: is_assembly ? store.availableUnits(l.assembly_id) : [], unit_ids: [] };
+    const adef = is_assembly ? store.assemblyById(l.assembly_id) : null;
+    const is_single = !!(adef && adef.assembly_kind === 'single');
+    // single-item assemblies (laptops/gameshows) auto-assign to the employee on the SO; allow override here.
+    const assignable = is_single || (l.kind === 'group' ? (l.members || []).some((m) => store.isEmployeeAssignable(m.vendor_item_id)) : false);
+    return { idx, name: l.name, is_group: l.kind === 'group', is_assembly, is_single, facility_id: l.facility_id, ordered: l.qty, remaining, avail, qty: Math.min(remaining, avail), assignable, employee_id: '', units: is_assembly ? store.availableUnits(l.assembly_id) : [], unit_ids: [] };
   });
   showShip.value = true;
 }
 const anyShort = computed(() => shipRows.value.some((r) => r.qty < r.remaining));
 function addShipLanded() { const so = shipSOref.value; if (!so) return; if (!slc.label.trim() || !(Number(slc.amount) > 0)) return toast.error('Enter a label and amount.'); (so.landed_costs = so.landed_costs || []).push({ id: uid('lc'), label: slc.label.trim(), amount: Number(slc.amount) }); Object.assign(slc, { label: '', amount: '' }); }
 function doShip() {
-  const rows = shipRows.value.map((r) => r.is_assembly ? { idx: r.idx, qty: (r.unit_ids || []).length, unit_ids: r.unit_ids || [], employee_id: '' } : { idx: r.idx, qty: Number(r.qty), employee_id: r.employee_id }).filter((r) => r.qty > 0);
+  const rows = shipRows.value.map((r) => r.is_assembly ? { idx: r.idx, qty: (r.unit_ids || []).length, unit_ids: r.unit_ids || [], employee_id: r.employee_id || '' } : { idx: r.idx, qty: Number(r.qty), employee_id: r.employee_id }).filter((r) => r.qty > 0);
   if (!rows.length) return toast.error('Nothing to ship.');
   if (shipSOref.value) shipSOref.value.shipping_cost = Number(shipCost.value) || 0;
   if (makeBackorder.value) {
@@ -265,7 +268,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
 
         <!-- items + group lines -->
         <div class="rounded-xl border border-slate-200 overflow-hidden">
-          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click (groups scale; assemblies ship as built units) <ReqTag code="SO-GRP-1" text="V3 SO Groups #1 — A group is ONE line with an expandable dropdown; changing its qty scales every member (e.g. 5 groups: singles x5, a double x10)." /> <ReqTag ver="V4" code="SO-1" text="V4 SO #1 — add an Assembly (built cart) or a tracked-asset single; pick the specific unit at ship-out." /></span><div class="mt-2"><SearchPicker :options="store.catalogShip" placeholder="Search items, groups, or assemblies…" @pick="onItemPick" /></div></div>
+          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click (groups scale; assemblies ship as built units) <ReqTag code="SO-GRP-1" text="V3 SO Groups #1 — A group is ONE line with an expandable dropdown; changing its qty scales every member (e.g. 5 groups: singles x5, a double x10)." /> <ReqTag ver="V4" code="SO-1" text="Amendment SO #1 — add an Assembly (cart, laptop, or gameshow) and pick the specific built unit at ship-out. Assembly-only items cannot be added as loose items." /></span><div class="mt-2"><SearchPicker :options="store.catalogShip" placeholder="Search items, groups, or assemblies…" @pick="onItemPick" /></div></div>
           <table class="w-full text-sm">
             <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-4 py-2">Item / Group</th><th class="text-left px-4 py-2">Facility (charge)</th><th class="text-right px-4 py-2">Qty</th><th class="text-right px-4 py-2">Unit</th><th class="text-right px-4 py-2">Line</th><th></th></tr></thead>
             <tbody class="divide-y divide-slate-100">
