@@ -1,4 +1,4 @@
-# Carease Health — Warehouse (WMS) · Vue 3 + Vite
+#  Warehouse Demo - (WMS) · Vue 3 + Vite
 
 A full Vue 3 single-page application (scaffolded the way you'd scaffold a React app
 with `npm create vite`) that recreates the Warehouse section UI from the
