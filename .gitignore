@@ -14,3 +14,6 @@ dist-ssr
 
 # vite temp config artifacts
 vite.config.js.timestamp-*
+
+# Internal supervisor documentation — not part of the app
+Supervisor Docs/
