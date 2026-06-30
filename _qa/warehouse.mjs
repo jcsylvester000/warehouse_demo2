@@ -3,7 +3,11 @@ import { uid } from '../src/utils/format.js';
 import { assetSeed } from '../src/data/assetSeed.js';
 import { geoForFacility } from '../src/utils/geo.js';
 
-const SKEY = 'carease_wms_app_v5';
+const SKEY = 'carease_wms_app_v6';
+// When false (set by the app at startup), the seed ships with NO Purchase Orders, Sales Orders or Returns
+// so the supervisor can test with fresh data he inputs. Tests leave it true to exercise the demo transactions.
+let SEED_TX = true;
+export function setSeedTransactions(v) { SEED_TX = v; }
 export const TODAY = '2026-06-16';
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -331,6 +335,12 @@ function seed() {
     { id: 'n-10', kind: 'inventory', title: 'Low stock alert', body: 'Sanitizing Wipes (tub) is low (25 of 40 threshold).', at: '2026-06-09T16:00:00', read: false, route: '/inventory' },
   ];
   db.counters.sku = 100034; db.counters.po = 194; db.counters.so = 153; db.counters.cart = 193; db.counters.asset = 2212; db.counters.ret = 41; db.counters.vbill = 1;
+  // Fresh-data mode for the supervisor: no seeded Purchase Orders / Sales Orders / Returns (and their generated bills, shipments, emails).
+  if (!SEED_TX) {
+    db.purchaseOrders = []; db.salesOrders = []; db.returns = [];
+    db.vendorBills = []; db.shipments = []; db.shipQueue = []; db.emails = [];
+    db.counters.po = 0; db.counters.so = 0; db.counters.ret = 0; db.counters.ship = 0; db.counters.vbill = 0;
+  }
 
   // normalize qty_onhand/qty_available from lots
   // Amendment: ONLY assemblies are assets. Raw laptops / trivia / gameshows are "assembly-only" parts:
