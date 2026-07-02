@@ -1,1 +1,4 @@
-/*    /index.html   200
+/api/health      /.netlify/functions/health      200
+/api/state       /.netlify/functions/state       200
+/api/snapshots   /.netlify/functions/snapshots   200
+/*               /index.html                     200

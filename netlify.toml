@@ -5,7 +5,25 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Single-page app: send all routes to index.html so deep links work
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["pg"]
+
+# API → Netlify Functions (must come BEFORE the SPA fallback)
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
+  status = 200
+[[redirects]]
+  from = "/api/state"
+  to = "/.netlify/functions/state"
+  status = 200
+[[redirects]]
+  from = "/api/snapshots"
+  to = "/.netlify/functions/snapshots"
+  status = 200
+
+# Single-page app: everything else → index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -5,7 +5,7 @@
 const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 const SLUG = import.meta.env.VITE_WMS_SLUG || 'carease-default';
 
-export const backendEnabled = () => Boolean(BASE);
+export const backendEnabled = () => Boolean(BASE) || import.meta.env.VITE_BACKEND === 'on'; // '' + VITE_BACKEND=on => same-origin Netlify Functions at /api/*
 export const workspaceSlug = () => SLUG;
 
 async function json(res) {
