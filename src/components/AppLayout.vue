@@ -6,6 +6,7 @@ import { useBackendSync } from '@/composables/useBackendSync';
 import { useToast } from '@/composables/useToast';
 import { useAnnotations } from '@/composables/useAnnotations';
 import { fmtDateTime } from '@/utils/format';
+import { backendEnabled, apiHealth } from '@/utils/api';
 import ToastStack from '@/components/ui/ToastStack.vue';
 import DocumentViewer from '@/components/ui/DocumentViewer.vue';
 import Modal from '@/components/ui/BaseModal.vue';
@@ -20,6 +21,9 @@ const { showAnnotations, toggle: toggleNotes } = useAnnotations();
 persistWarehouse(store);
 // Live backend (Prisma + Neon): loads & saves shared data when VITE_API_URL is set.
 useBackendSync(store);
+// Sidebar indicator: is the shared (Neon) backend live?
+const backendStatus = ref(backendEnabled() ? 'checking' : 'local');
+if (backendEnabled()) apiHealth().then((h) => { backendStatus.value = h && h.ok ? 'live' : 'offline'; }).catch(() => { backendStatus.value = 'offline'; });
 
 const nav = [
   { name: 'Warehouse Dashboard', to: '/', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10', isNew: true },
@@ -81,11 +85,15 @@ function reset() {
           </a>
         </nav>
         <div class="px-3 py-3 border-t border-white/10">
+          <div class="px-3 pb-2 flex items-center gap-1.5 text-[10px] font-semibold" :title="'Backend: ' + backendStatus">
+            <span class="w-2 h-2 rounded-full" :class="backendStatus==='live' ? 'bg-emerald-400' : backendStatus==='offline' ? 'bg-amber-400' : 'bg-slate-500'"></span>
+            <span class="text-slate-300/80">{{ backendStatus==='live' ? 'Live · saving to Neon' : backendStatus==='offline' ? 'Backend offline — local' : backendStatus==='checking' ? 'Checking backend…' : 'Local demo (browser)' }}</span>
+          </div>
           <button class="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-slate-300 rounded-lg hover:bg-white/10 hover:text-white transition-colors" @click="reset">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             Reset demo data
           </button>
-          <p class="px-3 pt-2 text-[10px] leading-snug text-slate-400/60">Data lives in browser memory and is erased when this tab is closed.</p>
+          <p class="px-3 pt-2 text-[10px] leading-snug text-slate-400/60">{{ backendStatus==='live' ? 'Data is saved to your shared database and persists across devices.' : 'Data lives in browser memory and is erased when this tab is closed.' }}</p>
         </div>
       </div>
     </div>
