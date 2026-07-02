@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { uid } from '@/utils/format';
 import { assetSeed } from '@/data/assetSeed';
-import { geoForFacility } from '@/utils/geo';
+import { geoForFacility, eastCoastDemoFacilities, eastCoastDemoStaff } from '@/utils/geo';
 
 const SKEY = 'carease_wms_app_v7';
 // When false (set by the app at startup), the seed ships with NO Purchase Orders, Sales Orders or Returns
@@ -426,6 +426,7 @@ export const useWarehouseStore = defineStore('warehouse', {
         const statusCounts = {}; carts.forEach((c) => { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
         out.push({ id: 'fac-' + out.length, name, regional, state: geo.state, city: geo.city, lat: geo.lat, lng: geo.lng, cartCount: carts.length, statusCounts, carts });
       });
+      if (!out.length) return eastCoastDemoFacilities(); // V5 MAP — east-coast demo pins when no real carts are deployed yet
       return out.sort((a, b) => b.cartCount - a.cartCount);
     },
     mapStates() { return [...new Set(this.mapFacilities.map((f) => f.state))].sort(); },
@@ -433,7 +434,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     staffWithEquipment(s) {
       const by = new Map();
       (s.assets || []).forEach((a) => { if (a.holder_type !== 'employee' || !a.holder) return; if (!by.has(a.holder)) by.set(a.holder, { name: a.holder, state: a.emp_state || '', items: [] }); const rec = by.get(a.holder); if (!rec.state && a.emp_state) rec.state = a.emp_state; rec.items.push({ klass: a.klass, code: a.code, status: a.status }); });
-      return [...by.values()].sort((a, b) => a.name.localeCompare(b.name));
+      const list = [...by.values()];
+      if (!list.length) return eastCoastDemoStaff().sort((a, b) => a.name.localeCompare(b.name)); // demo team when no real staff records yet
+      return list.sort((a, b) => a.name.localeCompare(b.name));
     },
     staffInState() { return (st) => this.staffWithEquipment.filter((u) => u.state === st); },
     // For the prototype: guarantee at least 2 people per facility so the data presents itself.

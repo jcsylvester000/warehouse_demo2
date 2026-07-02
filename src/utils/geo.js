@@ -107,3 +107,63 @@ export function shortName(full) {
   if (parts.length === 1) return parts[0];
   return parts[0] + ' ' + parts[parts.length - 1][0].toUpperCase() + '.';
 }
+
+// ---------------------------------------------------------------------------
+// East-coast-weighted DEMO data for the Equipment Map. Used only when there is
+// no real deployed-cart data yet (e.g. fresh-data mode). As soon as real carts
+// are assigned to facilities, the live data takes over automatically.
+// ---------------------------------------------------------------------------
+const _CART_TYPES = [['EDAN Cart', 'EDAN'], ['VS8 Cart', 'VS8'], ['Accutor Cart', 'Accutor']];
+const _REGIONALS = ['Rosa Diaz', 'Tim Boyd', 'Dana Ruiz', 'Marcus Lee'];
+const _DEMO_FAC = [
+  { name: 'Maple SNF', city: 'lakewood', s: 'NJ', lat: 40.0978, lng: -74.2176, carts: 9, reg: 0, oos: 1 },
+  { name: 'Bayview Center', city: 'toms river', s: 'NJ', lat: 39.9537, lng: -74.1979, carts: 12, reg: 0, oos: 0 },
+  { name: 'Newark Rehab', city: 'newark', s: 'NJ', lat: 40.7357, lng: -74.1724, carts: 7, reg: 1, oos: 0 },
+  { name: 'Brooklyn Care', city: 'brooklyn', s: 'NY', lat: 40.6782, lng: -73.9442, carts: 14, reg: 1, oos: 1 },
+  { name: 'Manhattan Health', city: 'new york', s: 'NY', lat: 40.7128, lng: -74.0060, carts: 11, reg: 1, oos: 0 },
+  { name: 'Buffalo Senior Living', city: 'buffalo', s: 'NY', lat: 42.8864, lng: -78.8784, carts: 5, reg: 2, oos: 0 },
+  { name: 'Liberty Rehab', city: 'philadelphia', s: 'PA', lat: 39.9526, lng: -75.1652, carts: 10, reg: 2, oos: 0 },
+  { name: 'Steel City Care', city: 'pittsburgh', s: 'PA', lat: 40.4406, lng: -79.9959, carts: 6, reg: 2, oos: 1 },
+  { name: 'Crofton Health', city: 'crofton', s: 'MD', lat: 39.0018, lng: -76.6863, carts: 8, reg: 3, oos: 0 },
+  { name: 'Harbor View SNF', city: 'baltimore', s: 'MD', lat: 39.2904, lng: -76.6122, carts: 9, reg: 3, oos: 0 },
+  { name: 'Bay State Rehab', city: 'boston', s: 'MA', lat: 42.3601, lng: -71.0589, carts: 13, reg: 3, oos: 0 },
+  { name: 'Charter Oak Care', city: 'hartford', s: 'CT', lat: 41.7658, lng: -72.6734, carts: 6, reg: 3, oos: 1 },
+  { name: 'Ocean State SNF', city: 'providence', s: 'RI', lat: 41.8240, lng: -71.4128, carts: 4, reg: 3, oos: 0 },
+  { name: 'Old Dominion Care', city: 'richmond', s: 'VA', lat: 37.5407, lng: -77.4360, carts: 7, reg: 2, oos: 0 },
+  { name: 'Tidewater Health', city: 'virginia beach', s: 'VA', lat: 36.8529, lng: -75.9780, carts: 5, reg: 2, oos: 0 },
+  { name: 'Queen City Rehab', city: 'charlotte', s: 'NC', lat: 35.2271, lng: -80.8431, carts: 8, reg: 2, oos: 0 },
+  { name: 'Palmetto Care', city: 'columbia', s: 'SC', lat: 34.0007, lng: -81.0348, carts: 5, reg: 2, oos: 1 },
+  { name: 'St Augustine SNF', city: 'st augustine', s: 'FL', lat: 29.9012, lng: -81.3124, carts: 6, reg: 2, oos: 0 },
+  { name: 'Sunshine Rehab', city: 'orlando', s: 'FL', lat: 28.5383, lng: -81.3792, carts: 10, reg: 2, oos: 0 },
+  { name: 'Bayfront Care', city: 'tampa', s: 'FL', lat: 27.9506, lng: -82.4572, carts: 7, reg: 2, oos: 0 },
+];
+export function eastCoastDemoFacilities() {
+  return _DEMO_FAC.map((f, idx) => {
+    const carts = [];
+    for (let i = 0; i < f.carts; i++) {
+      const [ct, bp] = _CART_TYPES[(idx + i) % _CART_TYPES.length];
+      let status = 'Deployed';
+      if (i < f.oos) status = (i % 2 ? 'Incomplete' : 'Out of Service');
+      carts.push({ id: 'demo-' + idx + '-' + i, code: 'CART-' + f.s + '-' + String(1001 + idx * 20 + i), cart_type: ct, bp_machine: bp, status, regional: _REGIONALS[f.reg] });
+    }
+    const statusCounts = {}; carts.forEach((c) => { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
+    return { id: 'demo-fac-' + idx, name: f.name, regional: _REGIONALS[f.reg], state: f.s, city: f.city, lat: f.lat, lng: f.lng, cartCount: carts.length, statusCounts, carts };
+  });
+}
+const _FIRST = ['Ava', 'Liam', 'Maya', 'Noah', 'Sofia', 'Ethan', 'Zoe', 'Owen', 'Nia', 'Eli', 'Iris', 'Leo', 'Mia', 'Jonah', 'Ruth', 'Shea', 'Dov', 'Rina', 'Ari', 'Tova'];
+const _LAST = ['Reyes', 'Kaplan', 'Tran', 'Park', 'Gold', 'Brooks', 'Moss', 'Levin', 'Shah', 'Cohen', 'Weiss', 'Diaz'];
+const _EAST_STATES = ['NJ', 'NY', 'PA', 'MD', 'MA', 'CT', 'RI', 'VA', 'NC', 'SC', 'FL'];
+export function eastCoastDemoStaff() {
+  const out = [];
+  _EAST_STATES.forEach((st, si) => {
+    const n = 2 + (si % 2);
+    for (let i = 0; i < n; i++) {
+      const nm = _FIRST[(si * 3 + i) % _FIRST.length] + ' ' + _LAST[(si + i) % _LAST.length];
+      out.push({ name: nm, state: st, items: [
+        { klass: 'laptop', code: 'LT-' + (2000 + si * 10 + i), status: 'Assigned' },
+        { klass: 'cellphone', code: 'P-' + (300 + si * 10 + i), status: i % 3 === 0 ? 'Return Pending' : 'Assigned' },
+      ] });
+    }
+  });
+  return out;
+}

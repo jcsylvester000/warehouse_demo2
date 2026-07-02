@@ -2,6 +2,7 @@ import pg from 'pg';
 const SLUG = process.env.WMS_WORKSPACE_SLUG || 'carease-default';
 const json = (s, b) => ({ statusCode: s, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
 export const handler = async (event) => {
+  if (!process.env.DATABASE_URL) return json(503, { ok: false, db: 'down', error: 'DATABASE_URL is not configured on the server.' });
   const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
   try {
     await c.connect();
