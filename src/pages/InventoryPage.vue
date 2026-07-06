@@ -53,12 +53,12 @@ const memberName = (m) => (m.kind === 'group' ? (store.groupById(m.ref_id) || {}
 /* ---------- add (single OR group) ---------- */
 const showAdd = ref(false); const addKind = ref('item');
 const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
-const groupForm = reactive({ id: null, name: '', description: '', assembly_only: false, members: [] });
+const groupForm = reactive({ id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [] });
 const asmForm = reactive({ id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
 function openAdd() {
   addKind.value = 'item';
   Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
-  Object.assign(groupForm, { id: null, name: '', description: '', assembly_only: false, members: [] });
+  Object.assign(groupForm, { id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [] });
   Object.assign(asmForm, { id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: (store.assemblyTypes[0] || {}).id || '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
   showAdd.value = true;
 }
@@ -77,8 +77,8 @@ function saveAdd() {
   } else if (addKind.value === 'group') {
     if (!groupForm.name.trim() || !groupForm.members.length) return toast.error('Group name and at least one member are required.');
     const members = JSON.parse(JSON.stringify(groupForm.members));
-    if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, assembly_only: groupForm.assembly_only, members }); toast.success('Group updated.'); }
-    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, assembly_only: groupForm.assembly_only, members }); toast.success('Group ' + g.sku + ' added (its own item).'); }
+    if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members }); toast.success('Group updated.'); }
+    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members }); toast.success('Group ' + g.sku + ' added (its own item).'); }
   } else {
     if (asmForm.assembly_kind === 'single') {
       if (!asmForm.name.trim() || !asmForm.source_item_id) return toast.error('Assembly name and a source item are required.');
@@ -98,7 +98,7 @@ function saveAdd() {
 }
 function editFromDetail() {
   if (detailItem.value) { const it = detailItem.value; addKind.value = 'item'; Object.assign(itemForm, { id: it.id, name: it.name, vendor_id: it.vendor_id, item_type_id: it.item_type_id, cost: it.cost, qty_onhand: it.qty_onhand, threshold: it.threshold, bin_location: it.bin_location, is_active: it.is_active, assembly_only: !!it.assembly_only }); }
-  else if (detailGroup.value) { const g = detailGroup.value; addKind.value = 'group'; Object.assign(groupForm, { id: g.id, name: g.name, description: g.description, assembly_only: !!g.assembly_only, members: JSON.parse(JSON.stringify(g.members)) }); }
+  else if (detailGroup.value) { const g = detailGroup.value; addKind.value = 'group'; Object.assign(groupForm, { id: g.id, name: g.name, description: g.description, vendor_id: g.vendor_id || '', assembly_only: !!g.assembly_only, members: JSON.parse(JSON.stringify(g.members)) }); }
   else if (detailAssembly.value) { const a = detailAssembly.value; addKind.value = 'assembly'; Object.assign(asmForm, { id: a.id, name: a.name, assembly_kind: a.assembly_kind || 'cart', source_item_id: a.source_item_id || '', fields: JSON.parse(JSON.stringify(a.fields || [])), assembly_type_id: a.assembly_type_id, composition: JSON.parse(JSON.stringify(a.composition || [])), asset_defaults: JSON.parse(JSON.stringify(a.asset_defaults || { cart_type: '', key_type: '', bp_device: '' })) }); }
   showDetail.value = false; showAdd.value = true;
 }
@@ -359,7 +359,8 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         <div v-else-if="addKind==='group'" class="space-y-3">
           <div class="grid grid-cols-2 gap-3">
             <label class="text-sm"><span class="block text-slate-600 mb-1">Group name *</span><input v-model="groupForm.name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-            <label class="text-sm"><span class="block text-slate-600 mb-1">Description</span><input v-model="groupForm.description" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label class="text-sm"><span class="block text-slate-600 mb-1">Vendor <ReqTag code="INV-2b" text="A group can carry its own vendor (e.g. the cart-hardware group from one supplier)." /></span><select v-model="groupForm.vendor_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="">— none —</option><option v-for="v in store.vendors" :key="v.id" :value="v.id">{{ v.name }}</option></select></label>
+            <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Description</span><input v-model="groupForm.description" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
           <label class="text-sm flex items-center gap-2"><input v-model="groupForm.assembly_only" type="checkbox" /> This group can only be shipped as an assembly <ReqTag ver="V6" code="INV-2" text="V6 Inventory 2 — a master full-cart group can only ship as an assembly; its individual parts can still ship loose." /></label>
           <div>

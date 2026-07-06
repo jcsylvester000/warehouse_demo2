@@ -679,7 +679,7 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     updateItem(id, patch) { const it = this.itemById(id); if (it) Object.assign(it, patch); },
     deactivateItem(id) { const it = this.itemById(id); if (it) it.is_active = false; const g = this.groupById(id); if (g) g.is_active = false; },
-    addGroup({ name, description, members, assembly_only }) { const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
+    addGroup({ name, description, members, assembly_only, vendor_id }) { const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', vendor_id: vendor_id || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
     updateGroup(id, patch) { const g = this.groupById(id); if (g) Object.assign(g, patch); },
 
     // ---- Purchase Orders ----
