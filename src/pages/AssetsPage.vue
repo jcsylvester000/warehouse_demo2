@@ -97,12 +97,12 @@ const heldCount = (name) => store.assetsForEmployee(name).filter((a) => a.status
 
 // ---------- Cart Received ----------
 const showRecv = ref(false);
-const recv = reactive({ facility_id: '', received_on: TODAY, bol: '', photos: [] });
-function openRecv(fid) { const ship = store.facilitiesAwaitingReceipt; Object.assign(recv, { facility_id: fid || (ship[0] && ship[0].id) || (store.facilities[0] || {}).id, received_on: TODAY, bol: '', photos: [] }); showRecv.value = true; }
+const recv = reactive({ facility_id: '', received_on: TODAY, bol: '', photos: [], qty: 0 });
+function openRecv(fid) { const ship = store.facilitiesAwaitingReceipt; const facId = fid || (ship[0] && ship[0].id) || (store.facilities[0] || {}).id; Object.assign(recv, { facility_id: facId, received_on: TODAY, bol: '', photos: [], qty: store.cartsInboundTo(facId) }); showRecv.value = true; }
 function markReady(a) { store.markCartReady(a.id); toast.success(a.code + ' passed QC — ready to ship.'); }
 function onBol(e) { const f = e.target.files && e.target.files[0]; if (f) recv.bol = f.name; }
 function onPhotos(e) { recv.photos = Array.from(e.target.files || []).map((f) => f.name); }
-function saveRecv() { if (!recv.bol) return toast.error('Upload the BOL to confirm receipt.'); store.confirmCartReceipt({ facility_id: recv.facility_id, received_on: recv.received_on, bol: recv.bol, photos: recv.photos }); const f = store.facilityById(recv.facility_id); toast.success('Cart receipt confirmed for ' + (f ? f.name : '') + '.'); showRecv.value = false; }
+function saveRecv() { if (!recv.bol) return toast.error('Upload the BOL to confirm receipt.'); store.confirmCartReceipt({ facility_id: recv.facility_id, received_on: recv.received_on, bol: recv.bol, photos: recv.photos, qty: recv.qty }); const f = store.facilityById(recv.facility_id); toast.success('Cart receipt confirmed for ' + (f ? f.name : '') + '.'); showRecv.value = false; }
 
 const chips = computed(() => [
   { label: 'Total assets', value: store.assetTotal },
@@ -283,7 +283,8 @@ const chips = computed(() => [
 
     <Modal v-if="showRecv" title="Confirm cart received" sub="Upload the BOL (required) and any delivery photos." @close="showRecv=false">
       <div class="space-y-3">
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">Facility <span class="text-slate-400 font-normal">(only facilities with a delivery on the way)</span></span><select v-model="recv.facility_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="f in store.facilitiesAwaitingReceipt" :key="f.id" :value="f.id">{{ f.name }}</option></select></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Facility <span class="text-slate-400 font-normal">(only facilities with a delivery on the way)</span></span><select v-model="recv.facility_id" @change="recv.qty = store.cartsInboundTo(recv.facility_id)" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="f in store.facilitiesAwaitingReceipt" :key="f.id" :value="f.id">{{ f.name }}</option></select></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Carts received <span class="text-slate-400 font-normal">({{ store.cartsInboundTo(recv.facility_id) }} sent to this facility)</span></span><input v-model.number="recv.qty" type="number" min="0" :max="store.cartsInboundTo(recv.facility_id)" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Received on</span><input v-model="recv.received_on" type="date" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">BOL <span class="text-rose-500">*</span></span><input type="file" class="text-xs" @change="onBol" /><span v-if="recv.bol" class="text-xs text-emerald-700 ml-2">{{ recv.bol }}</span></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>

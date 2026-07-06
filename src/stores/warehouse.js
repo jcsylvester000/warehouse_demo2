@@ -491,6 +491,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     facilityById: (s) => (id) => s.facilities.find((f) => f.id === id),
     // X2/S9: facilities that actually have something in transit to them (a shipped/in-progress SO or a
     // shipment not yet delivered). The Cart-Received flow should only offer THESE facilities, never any facility.
+    // X1/S7: how many REAL tracked carts were shipped to a facility and not yet acknowledged received.
+    cartsInboundTo(s) { return (fid) => (s.carts || []).filter((c) => c.facility_id === fid && c.location === 'Facility' && !c.received).length; },
     facilitiesAwaitingReceipt(s) {
       const ids = new Set();
       (s.shipments || []).forEach((sh) => { if (sh.status !== 'Delivered' && sh.byFacility) Object.keys(sh.byFacility).forEach((fid) => ids.add(fid)); });
@@ -987,7 +989,7 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (source_type === 'facility') {
         const f = this.facilityById(source_id); const fname = f ? f.name : '';
         this.carts.filter((c) => c.facility_id === source_id).forEach((c) => out.push({ key: 'cart:' + c.id, kind: 'cart', cart_id: c.id, label: c.code + ' (' + c.cart_type + ' cart)', asset_tag: c.code, cost: c.cost, components: c.components }));
-        this.facilityAssets.filter((a) => a.facility_id === source_id).forEach((a) => out.push({ key: 'fa:' + a.id, kind: 'facility', fa_id: a.id, label: a.item + ' ×' + a.qty, asset_tag: a.asset_tag, cost: 0 }));
+        // X1: legacy facilityAssets aggregate retired — facility returns use the REAL tracked carts (above) + user assets (below).
         this.userAssets.filter((a) => a.facility === fname && a.status !== 'Returned').forEach((a) => out.push({ key: 'ua:' + a.id, kind: a.item_type === 'Trivia Equipment' ? 'trivia' : 'laptop', ua_id: a.id, label: a.item + ' · ' + a.user, asset_tag: a.asset_tag, cost: a.cost || 0 }));
       } else if (source_type === 'employee') {
         const u = this.userById(source_id); const uname = u ? u.name : '';
@@ -1063,7 +1065,15 @@ export const useWarehouseStore = defineStore('warehouse', {
     /* Facility record management */
     addFacilityAttachment(facId, fileName) { const f = this.facilityById(facId); if (f && fileName) f.attachments.push(fileName); },
     sendFacilityMessage(facId, text) { const f = this.facilityById(facId); if (f && text && text.trim()) f.messages.unshift({ id: uid('m'), author: 'Malky Locker', text: text.trim(), at: new Date().toISOString() }); },
-    confirmCartReceipt({ facility_id, received_on, bol, photos }) { const f = this.facilityById(facility_id); this.cartReceipts.unshift({ id: uid('rcpt'), facility_id, shipped_qty: f ? f.carts_needed : null, shipment_date: f ? f.cart_shipment_date : null, received_on, bol_name: bol, photos: (photos || []).slice() }); if (f) f.status = 'Received'; },
+    confirmCartReceipt({ facility_id, received_on, bol, photos, qty }) {
+      const f = this.facilityById(facility_id);
+      // X1/S7: received quantity = REAL count of tracked carts shipped here (not the seeded carts_needed, which caused '3 shows 6').
+      const inbound = (this.carts || []).filter((c) => c.facility_id === facility_id && c.location === 'Facility' && !c.received);
+      const n = (qty != null && qty !== '') ? Math.max(0, Number(qty)) : inbound.length;
+      inbound.slice(0, n).forEach((c) => { c.received = true; c.status = 'Deployed'; }); // acknowledge delivery
+      this.cartReceipts.unshift({ id: uid('rcpt'), facility_id, shipped_qty: n, shipment_date: f ? f.cart_shipment_date : null, received_on, bol_name: bol, photos: (photos || []).slice() });
+      if (f) f.status = 'Received';
+    },
 
     /* ---- V4 Assemblies (Single / Group / Assembly model) ---- */
     addAssemblyDef({ name, assembly_kind, source_item_id, assembly_type_id, composition, asset_defaults, fields }) {
