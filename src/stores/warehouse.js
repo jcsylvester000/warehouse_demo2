@@ -401,12 +401,38 @@ export const useWarehouseStore = defineStore('warehouse', {
   getters: {
     // ---- Real Asset Registry getters ----
     assetClassList(s) { return s.assetClasses || []; },
-    assetsOf(s) { return (klass) => (s.assets || []).filter((a) => a.klass === klass); },
-    assetClassCount(s) { return (klass) => (s.assets || []).filter((a) => a.klass === klass).length; },
-    assetTotal(s) { return (s.assets || []).length; },
+    // A1/S8: every assembled cart IS a tracked asset. The Assets ▸ Carts registry reads the live `carts`
+    // collection (single source of truth) so a freshly built cart appears immediately, and a shipped cart
+    // carries over to its facility/holder automatically (carts already update on ship/return). Other
+    // asset classes (laptop, tablet, …) still read the seeded asset registry.
+    cartToAssetRow(s) {
+      return (c) => {
+        const fac = c.facility_id ? this.facilityById(c.facility_id) : null;
+        const reg = c.regional_id ? this.regionalById(c.regional_id) : (fac ? this.regionalById(fac.regional_id) : null);
+        let holder_type = '', holder = '';
+        if (c.location === 'Facility') { holder_type = 'facility'; holder = fac ? fac.name : ''; }
+        else if (c.location === 'Assigned') { holder_type = 'employee'; holder = c.assigned_user || ''; }
+        const smap = { Available: 'In Warehouse', Assigned: (c.location === 'Facility' ? 'Deployed' : 'Assigned') };
+        return {
+          id: c.id, klass: 'cart', code: c.code, holder_type, holder, emp_state: '',
+          status: c.status ? (smap[c.status] || c.status) : 'In Warehouse',
+          cart_type: c.cart_type || '', bp_machine: c.bp_device || '', key: c.key_type || '',
+          tablet_type: (c.fields && c.fields.tablet_type) || '', tablet_number: c.tablet_number || '',
+          clini_omni: '', basket_type: '', lte: '', regional: reg ? reg.name : (c.regional || ''),
+          condition: c.condition || 'New', cost: c.cost || 0, fields: c.fields || {}, _cart: true,
+        };
+      };
+    },
+    assetsOf(s) { return (klass) => klass === 'cart' ? (s.carts || []).map((c) => this.cartToAssetRow(c)) : (s.assets || []).filter((a) => a.klass === klass); },
+    assetClassCount(s) { return (klass) => klass === 'cart' ? (s.carts || []).length : (s.assets || []).filter((a) => a.klass === klass).length; },
+    assetTotal(s) { return (s.assets || []).filter((a) => a.klass !== 'cart').length + (s.carts || []).length; },
     assetClassMeta(s) { return (klass) => (s.assetClasses || []).find((c) => c.id === klass) || { id: klass, label: klass, cols: [] }; },
     assetStatusOptions() { return ['In Warehouse', 'Deployed', 'Assigned', 'Out of Service', 'Incomplete', 'Retired', 'Return Pending', 'Returned', 'Active', 'Deactivated']; },
-    assetCountByStatus(s) { return (klass, status) => (s.assets || []).filter((a) => (!klass || a.klass === klass) && a.status === status).length; },
+    assetCountByStatus(s) { return (klass, status) => {
+      const fromAssets = (s.assets || []).filter((a) => a.klass !== 'cart' && (!klass || a.klass === klass) && a.status === status).length;
+      const fromCarts = (!klass || klass === 'cart') ? (s.carts || []).map((c) => this.cartToAssetRow(c)).filter((a) => a.status === status).length : 0;
+      return fromAssets + fromCarts;
+    }; },
     terminatedList(s) { return s.terminatedEmployees || []; },
     assetsForEmployee(s) { return (name) => (s.assets || []).filter((a) => a.holder_type === 'employee' && (a.holder || '') === name); },
     // assets that still need to be recovered from a terminated employee (amendment-aligned returns)
@@ -418,6 +444,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     mapFacilities(s) {
       const byName = new Map();
       (s.assets || []).forEach((a) => { if (a.klass === 'cart' && a.holder_type === 'facility' && a.holder) { if (!byName.has(a.holder)) byName.set(a.holder, []); byName.get(a.holder).push(a); } });
+      // A1/S8: also show live carts that have been shipped to a facility (tracked in `carts`), so the map reflects real deployments.
+      (s.carts || []).forEach((c) => { if (c.location === 'Facility' && c.facility_id) { const fac = this.facilityById(c.facility_id); const nm = fac ? fac.name : null; if (!nm) return; if (!byName.has(nm)) byName.set(nm, []); byName.get(nm).push(this.cartToAssetRow(c)); } });
       const out = [];
       byName.forEach((carts, name) => {
         const geo = geoForFacility(name);
@@ -561,14 +589,22 @@ export const useWarehouseStore = defineStore('warehouse', {
   },
   actions: {
     // ---- Real Asset Registry actions ----
-    setAssetUnitStatus(id, status) { const a = (this.assets || []).find((x) => x.id === id); if (a) { a.status = status; this.logActivity('Asset ' + a.code + ' status -> ' + status); } },
+    setAssetUnitStatus(id, status) {
+      const c = (this.carts || []).find((x) => x.id === id);
+      if (c) { const rev = { 'In Warehouse': 'Available', Deployed: 'Assigned', Assigned: 'Assigned' }; c.status = rev[status] || status; this.logActivity('Cart ' + c.code + ' status -> ' + status); return; }
+      const a = (this.assets || []).find((x) => x.id === id); if (a) { a.status = status; this.logActivity('Asset ' + a.code + ' status -> ' + status); }
+    },
     reassignAsset(id, holder_type, holder) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return; a.holder_type = holder_type || ''; a.holder = holder || ''; a.status = holder ? (holder_type === 'facility' ? 'Deployed' : 'Assigned') : 'In Warehouse'; this.logActivity('Asset ' + a.code + ' reassigned to ' + (holder || 'warehouse')); },
     returnAsset(id, tracking) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return; a.status = 'Returned'; if (tracking) a.return_tracking = tracking; this.logActivity('Asset ' + a.code + ' returned by ' + (a.holder || '—')); },
     // terminated employee -> flag every asset they hold for recovery (then returnAsset finalises it)
     recoverTerminatedAssets(name) { const list = (this.assets || []).filter((a) => a.holder_type === 'employee' && (a.holder || '') === name && a.status !== 'Returned'); list.forEach((a) => { a.status = 'Return Pending'; }); this.logActivity('Recovery started for ' + name + ' (' + list.length + ' asset' + (list.length === 1 ? '' : 's') + ')'); return list.length; },
     // add / edit a tracked asset unit (Warehouse Manager). Holder is employee or facility only.
     addAsset(klass, rec) { this.counters.asn = (this.counters.asn || 0) + 1; const a = { id: 'as-' + this.counters.asn, klass, holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', ...rec }; this.assets.unshift(a); this.logActivity('Asset added: ' + (a.code || a.id) + ' (' + klass + ')'); return a; },
-    updateAsset(id, patch) { const a = (this.assets || []).find((x) => x.id === id); if (a) { Object.assign(a, patch); this.logActivity('Asset updated: ' + (a.code || id)); } return a; },
+    updateAsset(id, patch) {
+      const c = (this.carts || []).find((x) => x.id === id);
+      if (c) { const map = { cart_type: 'cart_type', bp_machine: 'bp_device', key: 'key_type', tablet_number: 'tablet_number', code: 'code' }; Object.keys(patch || {}).forEach((k) => { if (map[k]) c[map[k]] = patch[k]; }); this.logActivity('Cart updated: ' + c.code); return c; }
+      const a = (this.assets || []).find((x) => x.id === id); if (a) { Object.assign(a, patch); this.logActivity('Asset updated: ' + (a.code || id)); } return a;
+    },
     nextAssetCode(klass) { const meta = (this.assetClasses || []).find((c) => c.id === klass) || {}; const pre = meta.prefix || ''; let max = 0; (this.assets || []).filter((a) => a.klass === klass).forEach((a) => { const m = String(a.code || '').match(/(\d+)\s*$/); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } }); return (klass === 'cart' ? '' : pre) + String(max + 1).padStart(4, '0'); },
     _sync(item) { const q = item.lots.reduce((s, l) => s + l.qty, 0); item.qty_onhand = q; item.qty_available = q; },
     nextSku() { this.counters.sku += 1; return String(this.counters.sku); },
@@ -775,6 +811,8 @@ export const useWarehouseStore = defineStore('warehouse', {
       const allShipped = so.items.every((l) => (l.qty_shipped || 0) >= (l.qty || 0));
       if (allShipped && so.status !== 'completed') so.status = 'shipped';
       else if (!allShipped && so.status === 'draft') so.status = 'in_progress';
+      // S2/C4: shipping an SO creates a shipment record so it shows under Shipments (not only when combining).
+      if (so.items.some((l) => (l.qty_shipped || 0) > 0)) { this.ensureShipmentForSO(so, { status: allShipped ? 'Shipped' : 'Partial' }); this.markQueuedShipped(so.so_number); }
       return { captured: r2(captured) };
     },
     // R2 SO #8: ship the in-stock items, then move the shortfall to a back-order SO ("BC" suffix) and complete the original.
@@ -827,6 +865,8 @@ export const useWarehouseStore = defineStore('warehouse', {
       // return any assembled units this shipment sent back into the warehouse, and clear their line tracking
       (so.items || []).forEach((l) => { if (l.kind === 'assembly') { (l.shipped_units || []).forEach((cid) => { const c = this.carts.find((x) => x.id === cid); if (c) { c.location = 'Warehouse'; c.status = 'Available'; c.facility_id = null; c.regional_id = null; c.assigned_user = ''; c.so = null; } }); l.shipped_units = []; l.qty_shipped = 0; } });
       so.status = 'in_progress';
+      // reversing a shipment also removes its single-SO shipment record (avoid a phantom shipment).
+      this.shipments = (this.shipments || []).filter((sh) => sh.single_so !== so.so_number);
       // reversing restores the full order — drop any unshipped back orders it spawned (avoid phantom over-demand)
       this.salesOrders = this.salesOrders.filter((x) => !(x.backorder_of === so.so_number && (x.items || []).every((l) => (l.qty_shipped || 0) === 0)));
       return so;
@@ -853,24 +893,44 @@ export const useWarehouseStore = defineStore('warehouse', {
       so.items.forEach((l) => { const fid = l.facility_id || so.facility_id; const shipped = l.qty_shipped || 0; const rem = Math.max(0, (l.qty || 0) - shipped); const cost = (l.shipped_cost_total || 0) + rem * this.soLineUnitCost(l); out[fid] = r2((out[fid] || 0) + cost); });
       return out;
     },
-    // V6 SO-3: confirming an SO moves it to in-progress AND queues a shipment in the shipping queue.
-    confirmSo(so) {
+    // V6 SO-3 + S5: confirming an SO moves it to in-progress AND queues a shipment. Confirmation may be done
+    // by the Warehouse Manager OR the Regional receiving the order; who/role/when is recorded on the SO and
+    // persists to the shared database with the rest of the workspace state.
+    confirmSo(so, actor) {
       if (so.status === 'draft' || so.status === 'backorder') so.status = 'in_progress';
+      if (actor) { so.confirmed_by = actor.name || String(actor); so.confirmed_by_role = actor.role || ''; so.confirmed_at = new Date().toISOString(); }
       const exists = (this.shipQueue || []).some((q) => q.so_number === so.so_number && q.status !== 'Shipped');
       if (!exists) {
-        this.shipQueue.unshift({ id: uid('sq'), so_number: so.so_number, recipient_type: so.recipient_type, recipient_id: so.recipient_id, facility_id: so.facility_id || null, regional_id: so.regional_id || null, status: 'Queued', created_at: new Date().toISOString() });
-        this.logActivity('Shipment queued for ' + so.so_number);
+        this.shipQueue.unshift({ id: uid('sq'), so_number: so.so_number, recipient_type: so.recipient_type, recipient_id: so.recipient_id, facility_id: so.facility_id || null, regional_id: so.regional_id || null, confirmed_by: (actor && (actor.name || String(actor))) || '', confirmed_by_role: (actor && actor.role) || '', status: 'Queued', created_at: new Date().toISOString() });
+        this.logActivity('Shipment queued for ' + so.so_number + (actor ? ' · confirmed by ' + (actor.name || actor) + (actor.role ? ' (' + actor.role + ')' : '') : ''));
       }
       return so;
     },
     markQueuedShipped(so_number) { (this.shipQueue || []).forEach((q) => { if (q.so_number === so_number) q.status = 'Shipped'; }); },
+    // S2/C4: create (or refresh) a single-SO shipment record so a shipped order appears under Shipments.
+    ensureShipmentForSO(so, opts = {}) {
+      this.shipments = this.shipments || [];
+      const byFacility = {};
+      so.items.forEach((l) => { const fid = l.facility_id || so.facility_id; (byFacility[fid] = byFacility[fid] || []).push({ so: so.so_number, name: l.name, qty: (l.qty_shipped || l.qty), vendor_item_id: l.vendor_item_id }); });
+      const regional_id = so.regional_id || (this.facilityById(so.facility_id) || {}).regional_id || null;
+      let sh = this.shipments.find((x) => x.single_so === so.so_number);
+      if (!sh) {
+        this.counters.ship = (this.counters.ship || 0) + 1;
+        sh = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, single_so: so.so_number, so_numbers: [so.so_number], shipping_cost: Number(so.shipping_cost) || 0, byFacility, status: opts.status || 'Shipped', created_at: new Date().toISOString() };
+        this.shipments.unshift(sh);
+        this.logActivity('Shipment ' + sh.shipment_no + ' created for ' + so.so_number);
+      } else { sh.byFacility = byFacility; sh.shipping_cost = Number(so.shipping_cost) || 0; sh.regional_id = regional_id; if (opts.status) sh.status = opts.status; }
+      return sh;
+    },
     combineSOs(soIds, shipping_cost) {
       const sos = this.salesOrders.filter((s) => soIds.includes(s.id)); if (sos.length < 2) return null;
       const regional_id = sos[0].regional_id || (this.facilityById(sos[0].facility_id) || {}).regional_id;
       const byFacility = {};
       sos.forEach((so) => { so.items.forEach((l) => { const fid = l.facility_id || so.facility_id; (byFacility[fid] = byFacility[fid] || []).push({ so: so.so_number, name: l.name, qty: l.qty, vendor_item_id: l.vendor_item_id }); }); so.combined_into = true; });
+      // fold any single-SO shipments for these orders into the combined one (avoid duplicate shipment rows).
+      const _nums = sos.map((s) => s.so_number); this.shipments = (this.shipments || []).filter((sh) => !(sh.single_so && _nums.includes(sh.single_so)));
       this.counters.ship += 1;
-      const shipment = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, so_numbers: sos.map((s) => s.so_number), shipping_cost: Number(shipping_cost) || 0, byFacility, created_at: new Date().toISOString() };
+      const shipment = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, combined: true, so_numbers: sos.map((s) => s.so_number), shipping_cost: Number(shipping_cost) || 0, byFacility, status: 'Combined', created_at: new Date().toISOString() };
       this.shipments.unshift(shipment);
       return shipment;
     },

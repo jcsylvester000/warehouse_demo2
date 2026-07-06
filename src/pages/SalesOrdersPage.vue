@@ -32,7 +32,10 @@ const statusTone = (s) => ({ draft: 'slate', in_progress: 'amber', shipped: 'blu
 const statusLabel = (s) => ({ draft: 'Draft', in_progress: 'In Progress', shipped: 'Shipped', completed: 'Completed', backorder: 'Back order' }[s] || s);
 const backordersReady = computed(() => store.backordersReady());
 
-function confirmSo(so) { store.confirmSo(so); toast.success(so.so_number + ' confirmed — shipment added to the queue.'); }
+const showConfirmDlg = ref(false); const confirmSOref = ref(null);
+const confirmRegional = computed(() => { const so = confirmSOref.value; if (!so) return null; const rid = so.regional_id || (store.facilityById(so.facility_id) || {}).regional_id; return store.regionalById(rid); });
+function openConfirm(so) { confirmSOref.value = so; showConfirmDlg.value = true; }
+function doConfirm(actor) { const so = confirmSOref.value; if (!so) return; store.confirmSo(so, actor); toast.success(so.so_number + ' confirmed by ' + actor.name + ' (' + actor.role + ') — shipment queued.'); showConfirmDlg.value = false; }
 function completeSo(so) { so.status = 'completed'; toast.success(so.so_number + ' completed.'); }
 function reverse(so) { store.reverseShip(so); toast.info(so.so_number + ' shipment reversed — stock returned.'); }
 function shipBackorder(so) { if (so.status === 'backorder') so.status = 'in_progress'; openShip(so); }
@@ -233,11 +236,11 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
               <td class="px-5 py-3 text-slate-500 text-xs max-w-[220px] truncate" :title="so.shipping_address">{{ so.shipping_address || '—' }}</td>
               <td class="px-5 py-3 text-right tabular-nums">{{ so.items.length }}</td>
               <td class="px-5 py-3 text-right tabular-nums font-semibold">{{ money(soTotal(so)) }}</td>
-              <td class="px-5 py-3"><Badge :tone="statusTone(so.status)">{{ statusLabel(so.status) }}</Badge></td>
+              <td class="px-5 py-3"><Badge :tone="statusTone(so.status)">{{ statusLabel(so.status) }}</Badge><div v-if="so.confirmed_by" class="text-[10px] text-emerald-600 mt-0.5" :title="'Confirmed ' + (so.confirmed_at||'')">✓ {{ so.confirmed_by }}<span v-if="so.confirmed_by_role" class="text-slate-400"> · {{ so.confirmed_by_role }}</span></div></td>
               <td class="px-5 py-3 text-right whitespace-nowrap" @click.stop>
                 <Btn variant="ghost" size="sm" @click="openSO(so)">Open</Btn>
                 <Btn variant="ghost" size="sm" @click="openForm(so)">Edit</Btn>
-                <Btn v-if="so.status==='draft'||so.status==='backorder'" variant="soft-primary" size="sm" @click="confirmSo(so)">Confirm</Btn>
+                <Btn v-if="so.status==='draft'||so.status==='backorder'" variant="soft-primary" size="sm" @click="openConfirm(so)">Confirm</Btn>
                 <Btn v-if="so.status==='in_progress'" variant="soft-primary" size="sm" @click="openShip(so)">Ship</Btn>
                 <Btn v-else-if="so.status==='shipped'" variant="soft-success" size="sm" @click="completeSo(so)">Complete</Btn>
                 <Btn v-if="['shipped','completed'].includes(so.status) && so.items.some(l=>l.qty_shipped>0)" variant="ghost" size="sm" @click="reverse(so)">Reverse</Btn>
@@ -343,7 +346,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
           <div class="ml-auto flex gap-2">
             <span class="inline-flex items-center gap-1.5"><Btn variant="secondary" size="sm" @click="showDocs=true">Documents</Btn><Tag /></span>
             <Btn variant="secondary" size="sm" @click="showSO=false; openForm(curSO)">Edit</Btn>
-            <Btn v-if="curSO.status==='draft'||curSO.status==='backorder'" variant="soft-primary" size="sm" @click="confirmSo(curSO)">Confirm</Btn>
+            <Btn v-if="curSO.status==='draft'||curSO.status==='backorder'" variant="soft-primary" size="sm" @click="openConfirm(curSO)">Confirm</Btn>
             <Btn v-if="curSO.status==='in_progress'" variant="success" size="sm" @click="showSO=false; openShip(curSO)">Ship</Btn>
           </div>
         </div>
@@ -415,12 +418,28 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
     </Modal>
 
     <!-- Shipments -->
-    <Modal v-if="showShipments" title="Combined shipments" sub="Each groups items by facility under one Regional." wide @close="showShipments=false">
+    <Modal v-if="showShipments" title="Shipments" sub="Shipped orders and combined shipments, grouped by facility." wide @close="showShipments=false">
       <div v-for="sh in store.shipments" :key="sh.id" class="rounded-xl border border-slate-200 mb-3">
-        <div class="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100"><div class="font-semibold text-slate-800">{{ sh.shipment_no }} <span class="text-xs font-normal text-slate-500">· {{ (store.regionalById(sh.regional_id)||{}).name }} · SOs {{ sh.so_numbers.join(', ') }}</span></div><div class="text-xs text-slate-500">freight {{ money(sh.shipping_cost) }}</div></div>
+        <div class="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100"><div class="font-semibold text-slate-800"><span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 align-middle" :class="sh.single_so ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'">{{ sh.single_so ? 'SINGLE' : 'COMBINED' }}</span>{{ sh.shipment_no }} <span class="text-xs font-normal text-slate-500">· {{ (store.regionalById(sh.regional_id)||{}).name }} · SOs {{ sh.so_numbers.join(', ') }}</span></div><div class="text-xs text-slate-500">freight {{ money(sh.shipping_cost) }}</div></div>
         <div class="p-3 grid gap-2 sm:grid-cols-2"><div v-for="(rows,fid) in sh.byFacility" :key="fid" class="rounded-lg ring-1 ring-slate-100 p-2"><div class="text-xs font-semibold text-slate-700 mb-1">{{ (store.facilityById(fid)||{}).name }}</div><div v-for="(r,i) in rows" :key="i" class="text-xs text-slate-500 flex justify-between"><span>{{ r.qty }}× {{ r.name }}</span><span class="font-mono text-slate-400">{{ r.so }}</span></div></div></div>
       </div>
-      <p v-if="!store.shipments.length" class="text-center text-slate-400 text-sm py-6">No combined shipments yet — use Combine.</p>
+      <p v-if="!store.shipments.length" class="text-center text-slate-400 text-sm py-6">No shipments yet — ship an order, or use Combine to group orders for one Regional.</p>
+    </Modal>
+
+    <!-- Confirm SO — S5: Warehouse Manager OR the receiving Regional confirms; saved to the shared database -->
+    <Modal v-if="showConfirmDlg" :title="'Confirm ' + (confirmSOref ? confirmSOref.so_number : '')" sub="Both the Warehouse Manager and the Regional receiving the order can confirm. The confirmation is saved to the shared database." @close="showConfirmDlg=false">
+      <div class="space-y-3">
+        <p class="text-sm text-slate-600">Confirming moves the order into the shipping queue and records who confirmed it.</p>
+        <button class="w-full text-left rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 px-4 py-3 transition" @click="doConfirm({ name: 'Warehouse Manager', role: 'Warehouse Manager' })">
+          <div class="font-semibold text-slate-800">🏭 Warehouse Manager</div>
+          <div class="text-xs text-slate-500">Confirm on the warehouse side.</div>
+        </button>
+        <button class="w-full text-left rounded-xl border px-4 py-3 transition" :class="confirmRegional ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50' : 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'" :disabled="!confirmRegional" @click="confirmRegional && doConfirm({ name: confirmRegional.name, role: 'Regional' })">
+          <div class="font-semibold text-slate-800">🧑‍💼 {{ confirmRegional ? confirmRegional.name : 'No receiving regional' }}</div>
+          <div class="text-xs text-slate-500">{{ confirmRegional ? 'Confirm as the Regional receiving this order.' : 'This order has no regional to confirm as.' }}</div>
+        </button>
+      </div>
+      <template #footer><Btn variant="secondary" @click="showConfirmDlg=false">Cancel</Btn></template>
     </Modal>
 
     <!-- Notifications -->

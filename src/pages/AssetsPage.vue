@@ -145,7 +145,8 @@ const chips = computed(() => [
           <button v-for="h in [['','All'],['employee','User Assets'],['facility','Facility'],['warehouse','In warehouse']]" :key="h[0]" class="px-2.5 h-9 rounded-lg text-xs font-semibold border" :class="holderFilter===h[0]?'bg-slate-800 text-white border-slate-800':'border-slate-200 text-slate-600'" @click="holderFilter=h[0]">{{ h[1] }}</button>
         </div>
         <Btn variant="secondary" size="sm" @click="exportCsv">Export CSV</Btn>
-        <Btn size="sm" @click="openAdd">+ Add {{ meta.label.replace(/s$/, '') }}</Btn>
+        <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Add {{ meta.label.replace(/s$/, '') }}</Btn>
+        <span v-else class="text-xs text-slate-400 self-center">Carts appear here automatically — build them in <span class="font-semibold text-slate-500">Inventory ▸ Carts</span></span>
       </div>
 
       <div class="overflow-x-auto">
