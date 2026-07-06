@@ -92,13 +92,16 @@ function setStatus(po, ev) { store.setPoStatus(po, ev.target.value); toast.info(
 const pay = reactive({ amount: '', file: '', note: '' });
 function onPayFile(e) { const f = e.target.files && e.target.files[0]; if (f) pay.file = f.name; }
 function addPayment(po) { if (!(Number(pay.amount) > 0)) return toast.error('Enter a payment amount.'); store.addPoPayment(po, { amount: pay.amount, file: pay.file, note: pay.note }); Object.assign(pay, { amount: '', file: '', note: '' }); toast.success('Payment recorded.'); }
+const depositFile = ref('');
+function onDepositFile(e) { const f = e.target.files && e.target.files[0]; depositFile.value = f ? f.name : ''; }
+function cancelThisPO(po) { store.cancelPO(po); toast.info(po.po_number + ' cancelled — the record is kept.'); }
 const dlc = reactive({ label: '', amount: '', owed: false });
 function addDetailLanded(po) { if (!dlc.label.trim() || !(Number(dlc.amount) > 0)) return toast.error('Enter a label and amount.'); store.addPoLanded(po, dlc.label.trim(), dlc.amount, dlc.owed); Object.assign(dlc, { label: '', amount: '', owed: false }); }
 function saveNotes(po) { toast.success(po.po_number + ' saved.'); showPO.value = false; } // R3 PO #2: Save closes the PO
 const depositPct = (po) => { const v = store.vendors.find((x) => x.id === po.vendor_id); return v ? (Number(v.deposit_percent) || 0) : 0; };
 const detailSuggestedDeposit = (po) => store.poDepositFor(po.vendor_id, store.poGoodsTotal(po));
 function useAutoDeposit(po) { po.deposit = detailSuggestedDeposit(po); }
-function recordDeposit(po) { const amt = Number(po.deposit) || 0; if (amt <= 0) return toast.error('Set a deposit amount first.'); if ((po.payments || []).some((p) => p.note === 'Deposit')) return toast.error('A deposit payment is already recorded.'); store.addPoPayment(po, { amount: amt, note: 'Deposit' }); store.setPoStatus(po, 'Deposit Sent'); toast.success('Deposit recorded as a payment; status → Deposit Sent.'); }
+function recordDeposit(po) { const amt = Number(po.deposit) || 0; if (amt <= 0) return toast.error('Set a deposit amount first.'); if ((po.payments || []).some((p) => p.note === 'Deposit')) return toast.error('A deposit payment is already recorded.'); store.addPoPayment(po, { amount: amt, note: 'Deposit', file: depositFile.value }); depositFile.value = ''; store.setPoStatus(po, 'Deposit Sent'); toast.success('Deposit recorded as a payment; status → Deposit Sent.'); }
 
 /* ---------- send / resend ---------- */
 const showSend = ref(false); const sendPO = ref(null); const sendForm = reactive({ to: '', cc: '', resend: false });
@@ -108,16 +111,16 @@ function doSend() { store.sendPoToVendor(sendPO.value, sendForm.cc.trim(), sendF
 /* ---------- receive (landed from PO + optional asset prompt) ---------- */
 const showRecv = ref(false); const recvPO = ref(null); const recvLines = ref([]); const lastResult = ref(null);
 const recvLandedTotal = computed(() => recvPO.value ? store.poLandedTotal(recvPO.value) : 0);
-function openRecv(po) { recvPO.value = po; recvLines.value = po.items.map((l) => ({ id: l.id, name: l.name, is_group: l.kind === 'group', members: l.members || [], trackable: l.kind !== 'group' && store.isTrackableItem(l.vendor_item_id), ordered: l.qty, received: l.qty_received || 0, remaining: (l.qty || 0) - (l.qty_received || 0), qty: (l.qty || 0) - (l.qty_received || 0) })); showRecv.value = true; }
-const recvUnits = computed(() => recvLines.value.filter((l) => l.qty > 0).reduce((s, l) => s + (l.is_group ? (l.members || []).reduce((a, m) => a + (Number(m.per_group) || 0), 0) * Number(l.qty) : Number(l.qty)), 0));
+function openRecv(po) { recvPO.value = po; recvLines.value = po.items.map((l) => ({ id: l.id, name: l.name, is_group: l.kind === 'group', trackable: l.kind !== 'group' && store.isTrackableItem(l.vendor_item_id), ordered: l.qty, received: l.qty_received || 0, remaining: (l.qty || 0) - (l.qty_received || 0), qty: (l.qty || 0) - (l.qty_received || 0), members: (l.members || []).map((m) => { const ord = (Number(m.per_group) || 0) * (l.qty || 0); const rec = m.qty_received || 0; return { vendor_item_id: m.vendor_item_id, name: m.name, per_group: m.per_group, ordered: ord, received: rec, remaining: Math.max(0, ord - rec), qty: Math.max(0, ord - rec) }; }) })); showRecv.value = true; }
+const recvUnits = computed(() => recvLines.value.reduce((s, l) => s + (l.is_group ? (l.members || []).reduce((a, m) => a + (Number(m.qty) || 0), 0) : (Number(l.qty) > 0 ? Number(l.qty) : 0)), 0));
 const landedPerUnitPreview = computed(() => recvUnits.value > 0 ? Math.round((recvLandedTotal.value / recvUnits.value) * 100) / 100 : 0);
 function proceedReceive() {
-  const lines = recvLines.value.filter((l) => l.qty > 0);
+  const lines = recvLines.value.filter((l) => (l.is_group ? (l.members || []).some((m) => Number(m.qty) > 0) : l.qty > 0));
   if (!lines.length) return toast.error('Nothing to receive.');
   commitReceive(null); // V4 IT-3: tracked assets are created at ship-out / assembly, not at receiving.
 }
 function commitReceive(entries) {
-  const lines = recvLines.value.filter((l) => l.qty > 0).map((l) => ({ id: l.id, qty: Number(l.qty) }));
+  const lines = recvLines.value.map((l) => { if (l.is_group) { const memberQtys = {}; (l.members || []).forEach((m) => { if (Number(m.qty) > 0) memberQtys[m.vendor_item_id] = Number(m.qty); }); return { id: l.id, qty: 0, memberQtys }; } return { id: l.id, qty: Number(l.qty) }; }).filter((l) => l.qty > 0 || (l.memberQtys && Object.keys(l.memberQtys).length));
   const res = store.receivePO(recvPO.value, lines, recvLandedTotal.value, entries);
   lastResult.value = { ro: res.ro, billIds: res.billIds, po: recvPO.value.po_number, landedPerUnit: res.landedPerUnit, assets: res.assetsCreated.length, remaining: store.poRemaining(recvPO.value) };
   toast.success('Received into ' + res.ro + ' — items added to inventory.');
@@ -184,8 +187,10 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
           <div class="ml-auto flex gap-2">
             <span class="inline-flex items-center gap-1.5"><Btn variant="secondary" size="sm" @click="showDocs=true">Documents</Btn><Tag /></span>
             <Btn variant="secondary" size="sm" @click="showPO=false; editReturnPO=cur; openForm(cur)">Edit PO</Btn>
-            <Btn v-if="cur.status!=='received'" variant="secondary" size="sm" @click="openSend(cur, !!cur.sent)">{{ cur.sent ? 'Resend' : 'Send' }}</Btn>
-            <Btn v-if="cur.status!=='received'" variant="success" size="sm" @click="showPO=false; openRecv(cur)">Receive</Btn>
+            <Btn v-if="cur.status!=='received' && !cur.cancelled" variant="secondary" size="sm" @click="openSend(cur, !!cur.sent)">{{ cur.sent ? 'Resend' : 'Send' }}</Btn>
+            <Btn v-if="cur.status!=='received' && !cur.cancelled" variant="success" size="sm" @click="showPO=false; openRecv(cur)">Receive</Btn>
+            <Btn v-if="!cur.cancelled" variant="soft-danger" size="sm" @click="cancelThisPO(cur)">Cancel PO</Btn>
+            <Btn v-else variant="ghost" size="sm" @click="store.reopenPO(cur)">Reopen PO</Btn>
           </div>
         </div>
 
@@ -224,14 +229,14 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
               <div v-if="!(cur.payments||[]).some(p=>p.note==='Deposit')" class="flex items-end gap-2 pb-2 border-b border-slate-100">
                 <label class="text-xs"><span class="block text-slate-500 mb-1">Deposit (auto {{ depositPct(cur) }}%) <ReqTag ver="V6" code="PO-2" text="V6 PO 2 — a dollar symbol sits next to the deposit amount." /></span><div class="flex items-center"><span class="px-2 h-8 inline-flex items-center rounded-l border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-sm">$</span><input v-model.number="cur.deposit" type="number" step="0.01" class="w-24 h-8 px-2 rounded-r border border-slate-300 text-sm" /></div></label>
                 <button class="text-[11px] text-indigo-600 underline pb-2" @click="useAutoDeposit(cur)">use {{ money(detailSuggestedDeposit(cur)) }}</button>
-                <Btn variant="secondary" size="sm" class="ml-auto" @click="recordDeposit(cur)">Record deposit as payment</Btn>
+                <label class="text-[11px] text-slate-500 ml-auto flex items-center gap-1" title="Attach the deposit document">📎<input type="file" class="text-[10px] w-20" @change="onDepositFile" /></label><Btn variant="secondary" size="sm" @click="recordDeposit(cur)">Record deposit</Btn>
               </div>
-              <div v-for="p in (cur.payments||[])" :key="p.id" class="flex items-center gap-2 text-sm">
-                <input :value="p.amount" type="number" step="0.01" class="w-24 h-8 px-2 rounded border border-slate-300 text-right text-sm" @change="store.updatePoPayment(cur, p.id, { amount: $event.target.value })" />
-                <input :value="p.note" placeholder="note" class="flex-1 h-8 px-2 rounded border border-slate-300 text-sm" @change="store.updatePoPayment(cur, p.id, { note: $event.target.value })" />
+              <div v-for="p in (cur.payments||[])" :key="p.id" class="flex items-center gap-2 text-sm" :class="{'opacity-50 line-through': p.voided}">
+                <input :value="p.amount" :disabled="p.voided" type="number" step="0.01" class="w-24 h-8 px-2 rounded border border-slate-300 text-right text-sm disabled:bg-slate-100" @change="store.updatePoPayment(cur, p.id, { amount: $event.target.value })" />
+                <input :value="p.note" :disabled="p.voided" placeholder="note" class="flex-1 h-8 px-2 rounded border border-slate-300 text-sm disabled:bg-slate-100" @change="store.updatePoPayment(cur, p.id, { note: $event.target.value })" />
                 <Badge v-if="p.edited" tone="amber">changed</Badge>
-                <span v-if="p.file" class="text-xs text-emerald-700" :title="p.file">📎</span>
-                <button class="text-rose-400" @click="store.removePoPayment(cur, p.id)">&times;</button>
+                <span v-if="p.file" class="text-[11px] text-emerald-700 max-w-[110px] truncate" :title="p.file">📎 {{ p.file }}</span>
+                <button class="text-[11px] font-semibold px-2 h-7 rounded border border-slate-200 no-underline" :class="p.voided?'text-emerald-700':'text-rose-500'" @click="store.voidPoPayment(cur, p.id)">{{ p.voided ? 'Restore' : 'Void' }}</button>
               </div>
               <p v-if="!(cur.payments||[]).length" class="text-xs text-slate-400">No payments recorded.</p>
               <div v-if="store.poRemaining(cur) > 0" class="flex items-end gap-2 pt-2 border-t border-slate-100">
@@ -272,7 +277,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
                 <tr>
                   <td class="px-4 py-2 text-slate-700"><button v-if="l.kind==='group'" class="mr-1 text-slate-400" @click="l.expanded=!l.expanded">{{ l.expanded ? '▾' : '▸' }}</button>{{ l.name }}<Badge v-if="l.kind==='group'" tone="emerald" class="ml-1">group</Badge></td>
                   <td class="px-4 py-2 text-right"><input v-model="l.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" /></td>
-                  <td class="px-4 py-2 text-right"><input v-if="l.kind!=='group'" v-model="l.unit_cost" type="number" step="0.01" class="w-20 h-8 px-2 rounded border border-slate-300 text-right" /><span v-else class="text-slate-400">—</span></td>
+                  <td class="px-4 py-2 text-right"><span v-if="l.kind!=='group'" class="inline-flex items-center"><span class="px-1.5 h-8 inline-flex items-center rounded-l border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-xs">$</span><input v-model="l.unit_cost" type="number" step="0.01" class="w-16 h-8 px-2 rounded-r border border-slate-300 text-right" /></span><span v-else class="text-slate-400">—</span></td>
                   <td class="px-4 py-2 text-right tabular-nums">{{ money(store.poLineGoods(l)) }}</td>
                   <td class="px-4 py-2 text-right"><button class="text-rose-500" @click="form.items.splice(idx,1)">&times;</button></td>
                 </tr>
@@ -354,7 +359,13 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
       <table class="w-full text-sm">
         <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-3 py-2">Item</th><th class="text-left px-3 py-2">Vendor</th><th class="text-right px-3 py-2">Ordered</th><th class="text-right px-3 py-2">Received</th><th class="text-right px-3 py-2">Remaining</th><th class="text-right px-3 py-2">Receive now</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="l in recvLines" :key="l.id"><td class="px-3 py-2 text-slate-700">{{ l.name }}<Badge v-if="l.is_group" tone="emerald" class="ml-1">group</Badge><Badge v-if="l.trackable" tone="violet" class="ml-1">tracked</Badge></td><td class="px-3 py-2 text-slate-500">{{ store.vendorName(recvPO && recvPO.vendor_id) }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.ordered }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.received }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.remaining }}</td><td class="px-3 py-2 text-right"><input v-model="l.qty" type="number" min="0" :max="l.remaining" class="w-20 h-8 px-2 rounded border border-slate-300 text-right" /></td></tr>
+          <template v-for="l in recvLines" :key="l.id">
+            <tr v-if="!l.is_group"><td class="px-3 py-2 text-slate-700">{{ l.name }}<Badge v-if="l.trackable" tone="violet" class="ml-1">tracked</Badge></td><td class="px-3 py-2 text-slate-500">{{ store.vendorName(recvPO && recvPO.vendor_id) }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.ordered }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.received }}</td><td class="px-3 py-2 text-right tabular-nums">{{ l.remaining }}</td><td class="px-3 py-2 text-right"><input v-model="l.qty" type="number" min="0" :max="l.remaining" class="w-20 h-8 px-2 rounded border border-slate-300 text-right" /></td></tr>
+            <template v-else>
+              <tr class="bg-emerald-50/40"><td colspan="6" class="px-3 py-2 text-slate-700 font-semibold">{{ l.name }} <Badge tone="emerald" class="ml-1">group — receive each part separately</Badge></td></tr>
+              <tr v-for="(m,mi) in l.members" :key="l.id+'-'+mi"><td class="px-3 py-2 pl-6 text-slate-600">{{ m.name }} <span class="text-[11px] text-slate-400">({{ m.per_group }}/cart)</span></td><td class="px-3 py-2 text-slate-500">{{ store.vendorName(recvPO && recvPO.vendor_id) }}</td><td class="px-3 py-2 text-right tabular-nums">{{ m.ordered }}</td><td class="px-3 py-2 text-right tabular-nums">{{ m.received }}</td><td class="px-3 py-2 text-right tabular-nums">{{ m.remaining }}</td><td class="px-3 py-2 text-right"><input v-model="m.qty" type="number" min="0" :max="m.remaining" class="w-20 h-8 px-2 rounded border border-slate-300 text-right" /></td></tr>
+            </template>
+          </template>
         </tbody>
       </table>
       <div class="mt-4 rounded-xl bg-amber-50 ring-1 ring-amber-200 p-3 text-sm text-amber-900 flex items-center gap-2">Landed total <b>{{ money(recvLandedTotal) }}</b> = <b>{{ money(landedPerUnitPreview) }}/unit</b> on {{ recvUnits }} unit(s). Rides on top of base; carries with the item when it ships.</div>

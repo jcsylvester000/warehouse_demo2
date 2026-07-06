@@ -697,7 +697,10 @@ export const useWarehouseStore = defineStore('warehouse', {
     addPoPayment(po, { amount, file, note }) { const amt = Number(amount) || 0; (po.payments = po.payments || []).push({ id: uid('pay'), amount: amt, original_amount: amt, edited: false, file: file || '', note: note || '', at: new Date().toISOString() }); }, // R2 PO #4
     updatePoPayment(po, payId, patch) { const p = (po.payments || []).find((x) => x.id === payId); if (!p) return; if (patch.amount != null) { p.amount = Number(patch.amount) || 0; p.edited = p.amount !== p.original_amount; } if (patch.note != null) p.note = patch.note; }, // R3 PO #4 editable + changed flag
     removePoPayment(po, payId) { po.payments = (po.payments || []).filter((x) => x.id !== payId); },
-    poPaymentsTotal(po) { return r2((po.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)); }, // R3 PO #4 total
+    voidPoPayment(po, payId) { const p = (po.payments || []).find((x) => x.id === payId); if (p) { p.voided = !p.voided; this.logActivity('Payment ' + (p.voided ? 'voided' : 'restored') + ' on ' + po.po_number); } }, // P5: strike a payment but keep the record
+    cancelPO(po, reason) { po.cancelled = true; po.status = 'cancelled'; po.progress = 'Cancelled'; po.cancel_reason = reason || ''; po.cancelled_at = new Date().toISOString(); this.logActivity('PO ' + po.po_number + ' cancelled — record kept'); }, // P5
+    reopenPO(po) { po.cancelled = false; const full = (po.items || []).every((l) => (l.qty_received || 0) >= (l.qty || 0)); const any = (po.items || []).some((l) => (l.qty_received || 0) > 0); po.status = full ? 'received' : (any ? 'partial' : 'open'); po.progress = po.progress === 'Cancelled' ? 'Not started' : po.progress; this.logActivity('PO ' + po.po_number + ' reopened'); },
+    poPaymentsTotal(po) { return r2((po.payments || []).reduce((s, p) => s + (p.voided ? 0 : (Number(p.amount) || 0)), 0)); }, // R3 PO #4 total (P5: voided payments excluded)
     poLineGoods(l) { if (l && l.kind === 'group') return r2((Number(l.qty) || 0) * (l.members || []).reduce((s, m) => s + (Number(m.per_group) || 0) * (Number(m.unit_cost) || 0), 0)); return r2((Number(l.qty) || 0) * (Number(l.unit_cost) || 0)); }, // V4 PO-1: group line scales
     poGoodsTotal(po) { return r2((po.items || []).reduce((s, l) => s + this.poLineGoods(l), 0)); },
     poTotalWithLanded(po) { return r2(this.poGoodsTotal(po) + this.poLandedTotal(po)); }, // R3 SO #3: reconciles with SO cost
@@ -718,14 +721,30 @@ export const useWarehouseStore = defineStore('warehouse', {
       const ro = 'RO-2026-' + String(this.counters.ro).padStart(4, '0');
       // physical units = expanded item units (a group line fans out by per_group); landed spreads per physical unit
       const physUnits = (pl, q) => (pl && pl.kind === 'group' ? (pl.members || []).reduce((s, m) => s + (Number(m.per_group) || 0), 0) * q : q);
+      // P6: a group line may receive specific per-member quantities (e.g. 20 tablets but only 15 wheelbases).
+      const lineUnits = (pl, ln) => { if (pl && pl.kind === 'group' && ln.memberQtys) return Object.values(ln.memberQtys).reduce((s, v) => s + (Number(v) || 0), 0); const rem = (pl.qty || 0) - (pl.qty_received || 0); return physUnits(pl, Math.min(ln.qty || 0, rem)); };
       let totalUnits = 0;
-      lines.forEach((ln) => { const pl = po.items.find((l) => l.id === ln.id); if (pl && ln.qty > 0) { const rem = (pl.qty || 0) - (pl.qty_received || 0); totalUnits += physUnits(pl, Math.min(ln.qty, rem)); } });
+      lines.forEach((ln) => { const pl = po.items.find((l) => l.id === ln.id); if (pl) totalUnits += lineUnits(pl, ln); });
       const landedTotal = r2(landedTotalIn != null ? landedTotalIn : this.poLandedTotal(po));
       const landedPerUnit = totalUnits > 0 ? r2(landedTotal / totalUnits) : 0;
       const billLines = []; const assetsCreated = [];
       lines.forEach((ln) => {
         const poLine = po.items.find((l) => l.id === ln.id);
-        if (!poLine || ln.qty <= 0) return;
+        if (!poLine) return;
+        if (poLine.kind === 'group' && ln.memberQtys) {
+          // P6: receive exact quantities per member; the group's "received" = min complete carts across members.
+          (poLine.members || []).forEach((m) => {
+            const mq = Number(ln.memberQtys[m.vendor_item_id]) || 0; if (mq <= 0) return;
+            const it = this.itemById(m.vendor_item_id);
+            if (it) this.addLot(it, mq, m.unit_cost, landedPerUnit, ro);
+            this.logStock(m.vendor_item_id, 'in', mq, 'PO Receiving', ro, landedPerUnit ? ('landed +$' + landedPerUnit + '/unit') : null);
+            m.qty_received = (m.qty_received || 0) + mq;
+            billLines.push({ name: (it ? it.name : m.name) + ' (' + poLine.name + ')', qty: mq, unit_cost: Number(m.unit_cost) || 0, landed: landedPerUnit });
+          });
+          poLine.qty_received = Math.min(...(poLine.members || []).map((m) => Math.floor((m.qty_received || 0) / (Number(m.per_group) || 1))));
+          return;
+        }
+        if (ln.qty <= 0) return;
         const remaining = (poLine.qty || 0) - (poLine.qty_received || 0);
         const q = Math.min(ln.qty, remaining); if (q <= 0) return;
         poLine.qty_received = (poLine.qty_received || 0) + q;
@@ -735,6 +754,7 @@ export const useWarehouseStore = defineStore('warehouse', {
             const it = this.itemById(m.vendor_item_id);
             if (it) this.addLot(it, mq, m.unit_cost, landedPerUnit, ro);
             this.logStock(m.vendor_item_id, 'in', mq, 'PO Receiving', ro, landedPerUnit ? ('landed +$' + landedPerUnit + '/unit') : null);
+            m.qty_received = (m.qty_received || 0) + mq;
             billLines.push({ name: (it ? it.name : m.name) + ' (' + poLine.name + ')', qty: mq, unit_cost: Number(m.unit_cost) || 0, landed: landedPerUnit });
           });
         } else {
