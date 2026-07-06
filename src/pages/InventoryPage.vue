@@ -38,7 +38,7 @@ const cartsAvailable = computed(() => store.carts.filter((c) => c.location === '
 const chips = computed(() => [
   { label: 'Items + Groups', value: store.catalog.length },
   { label: 'Single items', value: store.items.length },
-  { label: 'Carts available', value: cartsAvailable.value },
+  { label: 'Carts built (available)', value: cartsAvailable.value },
   { label: 'Low stock', value: store.lowStockList.length, danger: true, clickable: true },
 ]);
 
@@ -128,8 +128,9 @@ const showBatch = ref(false);
 const batch = reactive({ assembly_id: '', condition: 'New', rows: [] });
 const batchDef = computed(() => store.assemblyById(batch.assembly_id));
 const batchIsCart = computed(() => !!(batchDef.value && batchDef.value.assembly_kind !== 'single'));
+function asmContents(id) { const a = store.assemblyById(id); if (!a) return ''; if (a.assembly_kind === 'single') return (store.itemById(a.source_item_id) || {}).name || ''; return (a.composition || []).map((m) => m.qty + '× ' + (m.kind === 'group' ? ((store.groupById(m.ref_id) || {}).name || 'group') : ((store.itemById(m.ref_id) || {}).name || 'item'))).join(', '); }
 function newBatchRow() { const f = {}; const d = batchDef.value; if (d && d.assembly_kind === 'single') (d.fields || []).forEach((k) => { f[k] = ''; }); return { code: '', cart_color: '', tablet_number: '', fields: f }; }
-function openBatch() { const d = store.assemblies.find((a) => a.assembly_kind !== 'single') || store.assemblies[0] || {}; batch.assembly_id = d.id || ''; batch.condition = 'New'; batch.rows = []; batch.rows.push(newBatchRow()); showDetail.value = false; showBatch.value = true; }
+function openBatch(id) { const d = id ? store.assemblyById(id) : (store.assemblies.find((a) => a.assembly_kind !== 'single') || store.assemblies[0] || {}); batch.assembly_id = (d && d.id) || ''; batch.condition = 'New'; batch.rows = []; batch.rows.push(newBatchRow()); showDetail.value = false; showBatch.value = true; }
 function onBatchAsm() { batch.rows = [newBatchRow()]; }
 function addBatchRow() { batch.rows.push(newBatchRow()); }
 function removeBatchRow(i) { batch.rows.splice(i, 1); if (!batch.rows.length) batch.rows.push(newBatchRow()); }
@@ -211,7 +212,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <button class="inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors" :class="tab==='cart'?'border-purple-600 text-purple-700':'border-transparent text-slate-500 hover:text-slate-700'" @click="tab='cart'">Carts <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold" :class="tab==='cart'?'bg-purple-100 text-purple-700':'bg-slate-100 text-slate-500'">{{ store.carts.length }}</span></button>
         </div>
         <Btn v-if="tab==='list'" size="sm" @click="openAdd()">+ Add Item</Btn>
-        <Btn v-else size="sm" @click="openAssemble()">+ Assemble Cart</Btn>
+        <Btn v-else size="sm" @click="openBatch()">+ Build Carts</Btn>
       </div>
 
       <!-- Items & Groups (minimal: SKU, Name, On Hand, Bin) -->
@@ -250,7 +251,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
 
       <!-- Carts -->
       <div v-show="tab==='cart'">
-        <div class="px-5 py-3 text-xs text-slate-500 border-b border-slate-100 flex items-center gap-2">Assembled carts (tracked assets). Build consumes parts and creates one asset; assigning to a facility moves it there.<span class="ml-auto flex gap-2"><Btn variant="secondary" size="sm" @click="showTypes=true">Manage cart types</Btn><Btn variant="secondary" size="sm" @click="openBatch()">+ Build multiple <ReqTag ver="V6" code="AS-5" text="V6 Assemblies 5 — build many carts at once in one line-item table." /></Btn><Btn size="sm" @click="openBuild((store.assemblies[0]||{}).id)">+ Build assembly <ReqTag ver="V4" code="AS-2" text="V4 Assemblies — build a cart (groups + singles) into one tracked asset; auto-fills fields; Cart Code required." /></Btn></span></div>
+        <div class="px-5 py-3 text-xs text-slate-500 border-b border-slate-100 flex items-center gap-2">Assembled carts (tracked assets). Build consumes parts and creates one asset; assigning to a facility moves it there.<span class="ml-auto flex gap-2"><Btn variant="secondary" size="sm" @click="showTypes=true">Manage cart types</Btn><Btn size="sm" @click="openBatch()">+ Build carts <ReqTag ver="V6" code="AS-5" text="Build one or many carts at once — pick the cart type and it pulls the parts automatically." /></Btn></span></div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider"><tr><th class="px-5 py-2.5 text-left font-semibold">Code</th><th class="px-5 py-2.5 text-left font-semibold">Type</th><th class="px-5 py-2.5 text-left font-semibold">Condition</th><th class="px-5 py-2.5 text-left font-semibold">Components</th><th class="px-5 py-2.5 text-right font-semibold">Cost (FIFO)</th><th class="px-5 py-2.5 text-left font-semibold">Location</th><th class="px-5 py-2.5 text-left font-semibold">Status</th><th class="px-5 py-2.5"></th></tr></thead>
@@ -326,7 +327,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         </div>
         <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
           <Btn variant="secondary" size="sm" @click="editFromDetail">Edit assembly</Btn>
-          <Btn variant="soft-primary" size="sm" @click="openBuild(detailAssembly.id)">Build a unit</Btn>
+          <Btn variant="soft-primary" size="sm" @click="openBatch(detailAssembly.id)">Build</Btn>
         </div>
       </div>
     </Modal>
@@ -492,7 +493,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         <div class="flex flex-wrap items-end gap-3">
           <label class="text-sm"><span class="block text-slate-600 mb-1">Assembly type <ReqTag ver="V6" code="AS-3" text="V6 Assemblies 3 — choose which assembly type you are building." /></span><select v-model="batch.assembly_id" @change="onBatchAsm" class="h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="a in store.assemblies" :key="a.id" :value="a.id">{{ a.name }}<template v-if="a.assembly_kind==='single'"> (single-item)</template></option></select></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Condition</span><select v-model="batch.condition" class="h-9 px-3 rounded-lg border border-slate-300 text-sm"><option>New</option><option>Refurbished</option></select></label>
-          <div class="text-xs text-slate-500 ml-auto">Buildable from stock: <b>{{ store.assemblyBuildable(batch.assembly_id) }}</b></div>
+          <div class="text-xs text-slate-500 ml-auto text-right">Available to build (from parts): <b>{{ store.assemblyBuildable(batch.assembly_id) }}</b><div class="text-[11px] text-slate-400 max-w-[340px]">Contains: {{ asmContents(batch.assembly_id) || '—' }}</div></div>
         </div>
         <div v-if="batchIsCart" class="text-[11px] text-violet-700">Auto-filled from inventory → Cart Type <b>{{ batchAutoFill.cart_type || '—' }}</b> · Key <b>{{ batchAutoFill.key_type || '—' }}</b> · BP <b>{{ batchAutoFill.bp_device || '—' }}</b> <ReqTag ver="V6" code="AS-2" text="V6 Assemblies 2 — these values are traced from the inventory items/groups inside the assembly." /></div>
         <div class="overflow-x-auto">
