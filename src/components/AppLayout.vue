@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useWarehouseStore, persistWarehouse } from '@/stores/warehouse';
 import { useBackendSync } from '@/composables/useBackendSync';
 import { useToast } from '@/composables/useToast';
+import { useLightbox } from '@/composables/useLightbox';
 import { useAnnotations } from '@/composables/useAnnotations';
 import { fmtDateTime } from '@/utils/format';
 import { backendEnabled, apiHealth } from '@/utils/api';
@@ -15,6 +16,7 @@ import Badge from '@/components/ui/Badge.vue';
 const router = useRouter();
 const store = useWarehouseStore();
 const toast = useToast();
+const lb = useLightbox();
 const { showAnnotations, toggle: toggleNotes } = useAnnotations();
 
 // Persist store → sessionStorage (cleared by the browser on tab/window close).
@@ -142,6 +144,13 @@ function reset() {
 
     <ToastStack />
     <DocumentViewer />
+
+    <!-- Image lightbox: click any item/group picture anywhere to view it large -->
+    <div v-if="lb.state.open" class="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-10" @click="lb.close()">
+      <img :src="lb.state.src" :alt="lb.state.alt" class="max-w-full max-h-full rounded-xl shadow-2xl object-contain" @click.stop />
+      <div v-if="lb.state.alt" class="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/90 text-sm font-medium bg-black/50 px-3 py-1 rounded-full">{{ lb.state.alt }}</div>
+      <button class="absolute top-4 right-6 text-white/80 hover:text-white text-3xl leading-none" title="Close" @click="lb.close()">&times;</button>
+    </div>
 
     <Modal v-if="showNotif" title="Notifications" :sub="store.unreadNotifications + ' unread of ' + store.notifications.length" wide @close="showNotif=false">
       <div class="flex items-center justify-end mb-3">

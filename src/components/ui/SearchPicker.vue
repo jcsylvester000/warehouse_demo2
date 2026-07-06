@@ -71,6 +71,7 @@ const activeCols = computed(() => presentKinds.value.map((k) => ({ key: k, label
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm border-b border-slate-50 hover:bg-indigo-50 focus:bg-indigo-100 focus:outline-none"
               @mousedown.prevent="pick(o)"
             >
+              <img v-if="o.image" :src="o.image" alt="" class="w-6 h-6 object-cover rounded shrink-0 ring-1 ring-slate-100" />
               <span v-if="o.sku" class="font-mono text-[10px] text-slate-400 shrink-0">{{ o.sku }}</span>
               <span class="flex-1 min-w-0 truncate text-slate-700">{{ o.name }}</span>
               <span v-if="o.on_hand != null" class="shrink-0 text-[11px] tabular-nums font-semibold" :class="o.on_hand > 0 ? 'text-emerald-600' : 'text-rose-400'">{{ o.on_hand }}</span>

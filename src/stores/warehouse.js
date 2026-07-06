@@ -564,15 +564,15 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     // lightweight options for searchable pickers (no cost computation → fast typing)
     catalogLite(s) {
-      const singles = s.items.map((i) => ({ id: i.id, sku: i.sku, name: i.name, is_group: false, on_hand: i.qty_onhand }));
-      const grps = s.groups.map((g) => ({ id: g.id, sku: g.sku, name: g.name, is_group: true, on_hand: this.groupOnHand(g.id) }));
+      const singles = s.items.map((i) => ({ id: i.id, sku: i.sku, name: i.name, is_group: false, on_hand: i.qty_onhand, image: i.image }));
+      const grps = s.groups.map((g) => ({ id: g.id, sku: g.sku, name: g.name, is_group: true, on_hand: this.groupOnHand(g.id), image: g.image }));
       return [...singles, ...grps];
     },
     // SO picker also includes assemblies (built carts you can ship). PO picker keeps catalogLite (parts only).
     catalogShip(s) {
       // assembly-only items (raw laptops/gameshows) cannot be shipped loose — only their assembled units can.
-      const singles = s.items.filter((i) => !i.assembly_only).map((i) => ({ id: i.id, sku: i.sku, name: i.name, is_group: false, on_hand: i.qty_onhand }));
-      const grps = s.groups.filter((g) => !g.assembly_only).map((g) => ({ id: g.id, sku: g.sku, name: g.name, is_group: true, on_hand: this.groupOnHand(g.id) }));
+      const singles = s.items.filter((i) => !i.assembly_only).map((i) => ({ id: i.id, sku: i.sku, name: i.name, is_group: false, on_hand: i.qty_onhand, image: i.image }));
+      const grps = s.groups.filter((g) => !g.assembly_only).map((g) => ({ id: g.id, sku: g.sku, name: g.name, is_group: true, on_hand: this.groupOnHand(g.id), image: g.image }));
       const asms = (s.assemblies || []).map((a) => ({ id: a.id, sku: a.sku, name: a.name, is_group: false, is_assembly: true, on_hand: this.availableUnits(a.id).length }));
       return [...singles, ...grps, ...asms];
     },
