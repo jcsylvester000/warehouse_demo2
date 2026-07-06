@@ -154,6 +154,9 @@ function saveEditUnit() { if (!editUnit.code.trim()) return toast.error('Cart Co
 /* ---------- manage assembly (cart) types ---------- */
 const showTypes = ref(false); const newTypeName = ref('');
 function addType() { if (!newTypeName.value.trim()) return; store.addAssemblyType(newTypeName.value.trim()); newTypeName.value = ''; }
+// A7: a cart type IS an assembly preset — Manage cart types is the one place to edit a type's contents or add a new one.
+function openNewType() { openAdd(); addKind.value = 'assembly'; showTypes.value = false; }
+function openTypeEdit(a) { addKind.value = 'assembly'; Object.assign(asmForm, { id: a.id, name: a.name, assembly_kind: a.assembly_kind || 'cart', source_item_id: a.source_item_id || '', fields: JSON.parse(JSON.stringify(a.fields || [])), assembly_type_id: a.assembly_type_id, composition: JSON.parse(JSON.stringify(a.composition || [])), asset_defaults: JSON.parse(JSON.stringify(a.asset_defaults || { cart_type: '', key_type: '', bp_device: '' })) }); showTypes.value = false; showAdd.value = true; }
 
 /* ---------- adjust stock (add/remove + mandatory reason, no FIFO option) ---------- */
 const showStock = ref(false);
@@ -532,10 +535,18 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
     </Modal>
 
     <!-- manage cart (assembly) types -->
-    <Modal v-if="showTypes" title="Manage cart types" sub="Assembly types you can build (EDAN, VS8, Accutor …). Edit or add your real cart types here — the supervisor can finalize these during testing." @close="showTypes=false">
+    <Modal v-if="showTypes" title="Manage cart types" sub="Each cart type is a preset made once — its name and what is inside it. Edit a type's contents or add a new one; 'Build carts' then just picks a type and pulls the parts automatically." wide @close="showTypes=false">
       <div class="space-y-2">
-        <div v-for="t in store.assemblyTypes" :key="t.id" class="flex items-center gap-2"><input v-model="t.name" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" /></div>
-        <div class="flex items-center gap-2 pt-2 border-t border-slate-100"><input v-model="newTypeName" placeholder="New cart type…" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" @keyup.enter="addType" /><Btn size="sm" @click="addType">Add</Btn></div>
+        <div class="flex items-center justify-between"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cart types (presets)</span><Btn size="sm" @click="openNewType">+ New cart type</Btn></div>
+        <div v-for="a in store.assemblies.filter(x=>x.assembly_kind!=='single')" :key="a.id" class="rounded-lg ring-1 ring-slate-200 px-3 py-2">
+          <div class="flex items-center gap-2"><span class="font-semibold text-slate-800">{{ a.name }}</span><span class="text-[11px] text-slate-400">· {{ store.assemblyBuildable(a.id) }} buildable</span><Btn variant="ghost" size="sm" class="ml-auto" @click="openTypeEdit(a)">Edit contents</Btn></div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Contains: {{ asmContents(a.id) || '—' }}</div>
+        </div>
+        <p v-if="!store.assemblies.filter(x=>x.assembly_kind!=='single').length" class="text-xs text-slate-400">No cart types yet — click <b>+ New cart type</b> to define one.</p>
+        <details class="pt-2 border-t border-slate-100"><summary class="text-[11px] uppercase tracking-wide text-slate-400 cursor-pointer">Cart type labels (used in the picker)</summary><div class="space-y-2 pt-2">
+          <div v-for="t in store.assemblyTypes" :key="t.id" class="flex items-center gap-2"><input v-model="t.name" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" /></div>
+          <div class="flex items-center gap-2"><input v-model="newTypeName" placeholder="New label…" class="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-sm" @keyup.enter="addType" /><Btn size="sm" @click="addType">Add</Btn></div>
+        </div></details>
       </div>
       <template #footer><Btn @click="showTypes=false">Done</Btn></template>
     </Modal>
