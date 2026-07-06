@@ -361,7 +361,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm"><span class="block text-slate-600 mb-1">Bin location</span><input v-model="itemForm.bin_location" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm flex items-center gap-2"><input v-model="itemForm.is_active" type="checkbox" /> Active</label>
           <label class="text-sm flex items-center gap-2 col-span-2"><input v-model="itemForm.assembly_only" type="checkbox" /> This item can only be shipped as an assembly <ReqTag ver="V4" code="IT-2" text="Amendment — an assembly-only item (laptop, gameshow) can't be added to a Sales Order as a loose item; it must be assembled first. A Single is never an asset." /></label>
-          <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><input type="file" accept="image/*" class="text-xs" @change="onImage($event, itemForm)" /><img v-if="itemForm.image" :src="itemForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200" /></div></label>
+          <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><label class="inline-flex items-center gap-2 px-3 h-9 rounded-lg bg-indigo-600 text-white text-xs font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>{{ itemForm.image ? 'Change image' : 'Upload image' }}<input type="file" accept="image/*" class="hidden" @change="onImage($event, itemForm)" /></label><img v-if="itemForm.image" :src="itemForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200 cursor-zoom-in" title="Click to enlarge" @click="lb.open(itemForm.image, itemForm.name)" /><button v-if="itemForm.image" type="button" class="text-xs text-rose-500 hover:underline" @click="itemForm.image=''">Remove</button></div></label>
         </div>
 
         <!-- group -->
@@ -372,18 +372,21 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
             <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Description</span><input v-model="groupForm.description" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
           <label class="text-sm flex items-center gap-2"><input v-model="groupForm.assembly_only" type="checkbox" /> This group can only be shipped as an assembly <ReqTag ver="V6" code="INV-2" text="V6 Inventory 2 — a master full-cart group can only ship as an assembly; its individual parts can still ship loose." /></label>
-          <label class="text-sm block"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><input type="file" accept="image/*" class="text-xs" @change="onImage($event, groupForm)" /><img v-if="groupForm.image" :src="groupForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200" /></div></label>
+          <label class="text-sm block"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><label class="inline-flex items-center gap-2 px-3 h-9 rounded-lg bg-indigo-600 text-white text-xs font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>{{ groupForm.image ? 'Change image' : 'Upload image' }}<input type="file" accept="image/*" class="hidden" @change="onImage($event, groupForm)" /></label><img v-if="groupForm.image" :src="groupForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200 cursor-zoom-in" title="Click to enlarge" @click="lb.open(groupForm.image, groupForm.name)" /><button v-if="groupForm.image" type="button" class="text-xs text-rose-500 hover:underline" @click="groupForm.image=''">Remove</button></div></label>
+          <div v-if="groupForm.members.length" class="space-y-2">
+            <span class="block text-slate-600 text-sm font-medium">Members in this group</span>
+            <div v-for="(m,idx) in groupForm.members" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
+              <Badge :tone="m.kind==='group'?'emerald':'slate'">{{ m.kind }}</Badge>
+              <span class="flex-1">{{ m.kind==='group' ? (store.groupById(m.ref_id)||{}).name : (store.itemById(m.ref_id)||{}).name }}</span>
+              <input v-model="m.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
+              <button class="text-rose-500 text-lg" @click="groupForm.members.splice(idx,1)">&times;</button>
+            </div>
+          </div>
+          <p v-else class="text-xs text-slate-400">No members yet — add single items or other groups below.</p>
           <div>
-            <span class="block text-slate-600 mb-1 text-sm">Add items to this group <ReqTag code="INV-1" text="V3 Inventory #1 — Group building is fast: adding successive items to a group has no lag (lightweight search picker)." /> <span class="text-xs text-slate-400">— search & click to drop in (single items or other groups)</span></span>
+            <span class="block text-slate-600 mb-1 text-sm">Add items to this group <ReqTag code="INV-1" text="V3 Inventory #1 — Group building is fast: adding successive items to a group has no lag (lightweight search picker)." /> <span class="text-xs text-slate-400">— single items or other groups</span></span>
             <SearchPicker multi :options="store.catalogLite" :exclude-ids="memberExclude" placeholder="Search all inventory…" @pick="onMemberPick" />
           </div>
-          <div v-for="(m,idx) in groupForm.members" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
-            <Badge :tone="m.kind==='group'?'emerald':'slate'">{{ m.kind }}</Badge>
-            <span class="flex-1">{{ m.kind==='group' ? (store.groupById(m.ref_id)||{}).name : (store.itemById(m.ref_id)||{}).name }}</span>
-            <input v-model="m.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
-            <button class="text-rose-500 text-lg" @click="groupForm.members.splice(idx,1)">&times;</button>
-          </div>
-          <p v-if="!groupForm.members.length" class="text-xs text-slate-400">No members yet — search above and click to add.</p>
         </div>
 
         <!-- assembly -->
@@ -397,18 +400,21 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <!-- CART assembly: parts + auto-fill defaults -->
           <template v-if="asmForm.assembly_kind==='cart'">
             <label class="text-sm block"><span class="block text-slate-600 mb-1">Cart type</span><select v-model="asmForm.assembly_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="t in store.assemblyTypes" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+            <div v-if="asmForm.composition.length" class="space-y-2">
+              <span class="block text-slate-600 text-sm font-medium">Parts in this assembly</span>
+              <div v-for="(c,idx) in asmForm.composition" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
+                <Badge :tone="c.kind==='group'?'emerald':'slate'">{{ c.kind }}</Badge>
+                <span class="flex-1">{{ asmPartName(c) }}</span>
+                <input v-model="c.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
+                <button class="text-rose-500 text-lg" @click="asmForm.composition.splice(idx,1)">&times;</button>
+              </div>
+            </div>
+            <p v-else class="text-xs text-slate-400">No parts yet — add groups &amp; single items below.</p>
             <div>
-              <span class="block text-slate-600 mb-1 text-sm">Parts — groups &amp; singles <ReqTag ver="V4" code="AS-2" text="V4 Assemblies #2 — a cart assembly is built from group items and singles." /> <span class="text-xs text-slate-400">— search &amp; click to add</span></span>
+              <span class="block text-slate-600 mb-1 text-sm">Add parts — groups &amp; singles <ReqTag ver="V4" code="AS-2" text="V4 Assemblies #2 — a cart assembly is built from group items and singles." /></span>
               <SearchPicker multi :options="store.catalogLite" :exclude-ids="asmPartExclude" placeholder="Search groups &amp; items…" @pick="onAsmPartPick" />
               <p class="mt-1 text-[11px] text-violet-600">An assembly can combine <b>any number of groups and single items</b> — add as many as the cart needs.</p>
             </div>
-            <div v-for="(c,idx) in asmForm.composition" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
-              <Badge :tone="c.kind==='group'?'emerald':'slate'">{{ c.kind }}</Badge>
-              <span class="flex-1">{{ asmPartName(c) }}</span>
-              <input v-model="c.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
-              <button class="text-rose-500 text-lg" @click="asmForm.composition.splice(idx,1)">&times;</button>
-            </div>
-            <p v-if="!asmForm.composition.length" class="text-xs text-slate-400">No parts yet — search above and click to add.</p>
             <div class="rounded-lg bg-violet-50/60 ring-1 ring-violet-100 p-3">
               <div class="text-xs font-semibold uppercase tracking-wide text-violet-700 mb-2">Asset auto-fill defaults <ReqTag ver="V4" code="AS-3" text="V4 Assemblies #3 — these defaults auto-fill the asset fields when a unit is built." /></div>
               <div class="grid grid-cols-3 gap-3">

@@ -280,7 +280,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
 
         <!-- items + group lines -->
         <div class="rounded-xl border border-slate-200 overflow-hidden">
-          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click (groups scale; assemblies ship as built units) <ReqTag code="SO-GRP-1" text="V3 SO Groups #1 — A group is ONE line with an expandable dropdown; changing its qty scales every member (e.g. 5 groups: singles x5, a double x10)." /> <ReqTag ver="V4" code="SO-1" text="Amendment SO #1 — add an Assembly (cart, laptop, or gameshow) and pick the specific built unit at ship-out. Assembly-only items cannot be added as loose items." /></span><div class="mt-2"><SearchPicker multi :options="store.catalogShip" placeholder="Search items, groups, or assemblies…" @pick="onItemPick" /></div></div>
+          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items on this order <ReqTag code="SO-GRP-1" text="V3 SO Groups #1 — A group is ONE line with an expandable dropdown; changing its qty scales every member (e.g. 5 groups: singles x5, a double x10)." /> <ReqTag ver="V4" code="SO-1" text="Amendment SO #1 — add an Assembly (cart, laptop, or gameshow) and pick the specific built unit at ship-out. Assembly-only items cannot be added as loose items." /></span></div>
           <table class="w-full text-sm">
             <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-4 py-2">Item / Group</th><th class="text-left px-4 py-2">Facility (charge)</th><th class="text-right px-4 py-2">Qty</th><th class="text-right px-4 py-2">Unit</th><th class="text-right px-4 py-2">Line</th><th></th></tr></thead>
             <tbody class="divide-y divide-slate-100">
@@ -307,7 +307,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
                   </tr>
                 </template>
               </template>
-              <tr v-if="!form.items.length"><td colspan="6" class="px-4 py-6 text-center text-slate-400">No items — search above to add.</td></tr>
+              <tr v-if="!form.items.length"><td colspan="6" class="px-4 py-6 text-center text-slate-400">No items yet — add them below.</td></tr>
             </tbody>
             <tfoot>
               <tr><td colspan="4"></td><td class="px-4 py-1.5 text-right text-xs text-slate-400">Goods</td><td class="px-4 py-1.5 text-right tabular-nums text-slate-600">{{ money(formGoods) }}</td></tr>
@@ -318,6 +318,12 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
             <span class="font-semibold uppercase tracking-wide text-slate-400">Charges by facility:</span>
             <span v-for="(amt,fid) in formFacilityCharges" :key="fid" class="ml-3">{{ (store.facilityById(fid)||{}).name }} <b class="tabular-nums">{{ money(amt) }}</b></span>
           </div>
+        </div>
+
+        <!-- add items BELOW the list so the dropdown never covers what you've already added -->
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3">
+          <span class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1.5">+ Add an item, group, or assembly</span>
+          <SearchPicker multi :options="store.catalogShip" placeholder="Search items, groups, or assemblies…" @pick="onItemPick" />
         </div>
 
         <!-- outbound landed -->

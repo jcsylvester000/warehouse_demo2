@@ -269,7 +269,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
         </div>
 
         <div class="rounded-xl border border-slate-200 overflow-hidden">
-          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click to drop in (items and groups in one list) <ReqTag ver="V4" code="PO-1" text="V4 PO #1 — A group on a PO is ONE line; set the group qty once and every item inside scales (same as the Sales Order)." /></span><div class="mt-2"><SearchPicker multi :options="store.catalogLite" :exclude-ids="pickExclude" placeholder="Search item number or name…" @pick="onPick" /></div></div>
+          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items on this order <ReqTag ver="V4" code="PO-1" text="V4 PO #1 — A group on a PO is ONE line; set the group qty once and every item inside scales (same as the Sales Order)." /></span></div>
           <table class="w-full text-sm">
             <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-4 py-2">Item / Group</th><th class="text-right px-4 py-2">Qty</th><th class="text-right px-4 py-2">Unit</th><th class="text-right px-4 py-2">Line</th><th></th></tr></thead>
             <tbody class="divide-y divide-slate-100">
@@ -291,10 +291,16 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
                   </tr>
                 </template>
               </template>
-              <tr v-if="!form.items.length"><td colspan="5" class="px-4 py-6 text-center text-slate-400">No items — search above to add.</td></tr>
+              <tr v-if="!form.items.length"><td colspan="5" class="px-4 py-6 text-center text-slate-400">No items yet — add them below.</td></tr>
             </tbody>
             <tfoot><tr class="border-t border-slate-200"><td colspan="2"></td><td class="px-4 py-2 text-right text-xs uppercase text-slate-400">Goods</td><td class="px-4 py-2 text-right font-bold tabular-nums">{{ money(formTotal) }}</td><td></td></tr></tfoot>
           </table>
+        </div>
+
+        <!-- add items BELOW the list so the dropdown never covers what you've already added -->
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3">
+          <span class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1.5">+ Add an item or group</span>
+          <SearchPicker multi :options="store.catalogLite" :exclude-ids="pickExclude" placeholder="Search item number or name…" @pick="onPick" />
         </div>
 
         <!-- landed cost (internal only, multiple) -->
