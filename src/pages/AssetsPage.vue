@@ -98,7 +98,8 @@ const heldCount = (name) => store.assetsForEmployee(name).filter((a) => a.status
 // ---------- Cart Received ----------
 const showRecv = ref(false);
 const recv = reactive({ facility_id: '', received_on: TODAY, bol: '', photos: [] });
-function openRecv(fid) { const ship = store.facilities.filter((f) => f.cart_shipment_date && f.status !== 'Received'); Object.assign(recv, { facility_id: fid || (ship[0] && ship[0].id) || store.facilities[0].id, received_on: TODAY, bol: '', photos: [] }); showRecv.value = true; }
+function openRecv(fid) { const ship = store.facilitiesAwaitingReceipt; Object.assign(recv, { facility_id: fid || (ship[0] && ship[0].id) || (store.facilities[0] || {}).id, received_on: TODAY, bol: '', photos: [] }); showRecv.value = true; }
+function markReady(a) { store.markCartReady(a.id); toast.success(a.code + ' passed QC — ready to ship.'); }
 function onBol(e) { const f = e.target.files && e.target.files[0]; if (f) recv.bol = f.name; }
 function onPhotos(e) { recv.photos = Array.from(e.target.files || []).map((f) => f.name); }
 function saveRecv() { if (!recv.bol) return toast.error('Upload the BOL to confirm receipt.'); store.confirmCartReceipt({ facility_id: recv.facility_id, received_on: recv.received_on, bol: recv.bol, photos: recv.photos }); const f = store.facilityById(recv.facility_id); toast.success('Cart receipt confirmed for ' + (f ? f.name : '') + '.'); showRecv.value = false; }
@@ -162,7 +163,7 @@ const chips = computed(() => [
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="a in paged" :key="a.id" class="hover:bg-slate-50/60">
-              <td class="px-3 py-2 font-mono text-xs text-slate-700">{{ a.code }}<Badge v-if="a.legacy" tone="slate" class="ml-1">old</Badge></td>
+              <td class="px-3 py-2 font-mono text-xs text-slate-700">{{ a.code }}<Badge v-if="a.legacy" tone="slate" class="ml-1">old</Badge><Badge v-if="a.refurbished" tone="amber" class="ml-1">Refurb</Badge><Badge v-if="a._cart && a.refurbished && !a.ready" tone="rose" class="ml-1">Needs QC</Badge></td>
               <td class="px-3 py-2">
                 <span v-if="a.holder_type==='employee'" class="text-slate-700">\U0001F464 {{ a.holder }}<span v-if="a.emp_state" class="text-slate-400"> · {{ a.emp_state }}</span></span>
                 <span v-else-if="a.holder_type==='facility'" class="text-slate-700">\U0001F3E5 {{ a.holder }}</span>
@@ -174,7 +175,7 @@ const chips = computed(() => [
                 </select>
               </td>
               <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
-              <td class="px-3 py-2 text-right"><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
+              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
             <tr v-if="!total"><td :colspan="4 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
           </tbody>
@@ -227,7 +228,11 @@ const chips = computed(() => [
     </div>
 
     <Card v-else title="Cart Received" sub="Confirm a facility's carts arrived (BOL + photos).">
-      <div class="flex justify-end mb-3"><Btn size="sm" @click="openRecv()">+ Confirm cart received</Btn></div>
+      <div class="flex items-center justify-between mb-3">
+        <p v-if="!store.facilitiesAwaitingReceipt.length" class="text-xs text-slate-400">No facilities are awaiting a delivery — the receive action appears only when an order is on the way.</p>
+        <span v-else class="text-xs text-slate-500">{{ store.facilitiesAwaitingReceipt.length }} facility awaiting a delivery.</span>
+        <Btn size="sm" :disabled="!store.facilitiesAwaitingReceipt.length" @click="openRecv()">+ Confirm cart received</Btn>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider"><tr><th class="text-left px-4 py-2">Facility</th><th class="text-left px-4 py-2">Qty</th><th class="text-left px-4 py-2">Shipment date</th><th class="text-left px-4 py-2">Received</th><th class="text-left px-4 py-2">BOL</th></tr></thead>
@@ -278,7 +283,7 @@ const chips = computed(() => [
 
     <Modal v-if="showRecv" title="Confirm cart received" sub="Upload the BOL (required) and any delivery photos." @close="showRecv=false">
       <div class="space-y-3">
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">Facility</span><select v-model="recv.facility_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="f in store.facilities" :key="f.id" :value="f.id">{{ f.name }}</option></select></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Facility <span class="text-slate-400 font-normal">(only facilities with a delivery on the way)</span></span><select v-model="recv.facility_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="f in store.facilitiesAwaitingReceipt" :key="f.id" :value="f.id">{{ f.name }}</option></select></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Received on</span><input v-model="recv.received_on" type="date" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">BOL <span class="text-rose-500">*</span></span><input type="file" class="text-xs" @change="onBol" /><span v-if="recv.bol" class="text-xs text-emerald-700 ml-2">{{ recv.bol }}</span></label>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>

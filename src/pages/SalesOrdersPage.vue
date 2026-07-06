@@ -36,7 +36,7 @@ const showConfirmDlg = ref(false); const confirmSOref = ref(null);
 const confirmRegional = computed(() => { const so = confirmSOref.value; if (!so) return null; const rid = so.regional_id || (store.facilityById(so.facility_id) || {}).regional_id; return store.regionalById(rid); });
 function openConfirm(so) { confirmSOref.value = so; showConfirmDlg.value = true; }
 function doConfirm(actor) { const so = confirmSOref.value; if (!so) return; store.confirmSo(so, actor); toast.success(so.so_number + ' confirmed by ' + actor.name + ' (' + actor.role + ') — shipment queued.'); showConfirmDlg.value = false; }
-function completeSo(so) { so.status = 'completed'; toast.success(so.so_number + ' completed.'); }
+function completeSo(so) { store.completeSalesOrder(so); toast.success(so.so_number + ' completed — delivered (proof of delivery recorded).'); }
 function reverse(so) { store.reverseShip(so); toast.info(so.so_number + ' shipment reversed — stock returned.'); }
 function shipBackorder(so) { if (so.status === 'backorder') so.status = 'in_progress'; openShip(so); }
 
@@ -169,13 +169,16 @@ function doShip() {
 /* ---------------- combine (kept) ---------------- */
 const showCombine = ref(false); const combineReg = ref(''); const combineSel = ref([]); const combineCost = ref(0);
 const combinable = computed(() => store.salesOrders.filter((s) => !s.combined_into && ['draft', 'in_progress'].includes(s.status) && (s.regional_id === combineReg.value || (store.facilityById(s.facility_id) || {}).regional_id === combineReg.value)));
+// C1: once one SO is picked, only same-destination SOs stay selectable. C2: how many destinations have >=2 combinable orders.
+const combineDestKey = computed(() => { const first = store.salesOrders.find((s) => s.id === combineSel.value[0]); return first ? store.soDestKey(first) : null; });
+const combineHint = computed(() => { const g = {}; store.salesOrders.forEach((s) => { if (!s.combined_into && s.status === 'in_progress') { const k = store.soDestKey(s); g[k] = (g[k] || 0) + 1; } }); return Object.values(g).filter((n) => n >= 2).length; });
 function openCombine() { combineReg.value = store.regionals[0].id; combineSel.value = []; combineCost.value = 0; showCombine.value = true; }
 function toggleCombine(id) { const i = combineSel.value.indexOf(id); if (i > -1) combineSel.value.splice(i, 1); else combineSel.value.push(id); }
-function doCombine() { if (combineSel.value.length < 2) return toast.error('Select at least two SOs for the same Regional.'); const sh = store.combineSOs(combineSel.value, combineCost.value); toast.success('Combined into ' + sh.shipment_no + ' — items tracked per facility.'); showCombine.value = false; }
+function doCombine() { if (combineSel.value.length < 2) return toast.error('Select at least two orders going to the same place.'); const sh = store.combineSOs(combineSel.value, combineCost.value); if (!sh || sh.error) return toast.error((sh && sh.error) || 'Could not combine.'); toast.success('Combined into ' + sh.shipment_no + ' — one shipment to ' + (sh.recipient_label || 'the recipient') + '.'); showCombine.value = false; }
 
 /* ---------------- print (ready-to-ship list + shipping slips one per page) ---------------- */
 const showSlips = ref(false);
-const readyToShip = computed(() => store.salesOrders.filter((s) => (s.status === 'in_progress' || (s.status === 'backorder' && s.items.every((l) => store.soLineEffective(l, (l.qty - (l.qty_shipped || 0))).every((e) => itemOnHand(e.vendor_item_id) >= e.qty)))) && !s.combined_into));
+const readyToShip = computed(() => store.salesOrders.filter((s) => (s.status === 'in_progress' || s.status === 'shipped' || (s.status === 'backorder' && s.items.every((l) => store.soLineEffective(l, (l.qty - (l.qty_shipped || 0))).every((e) => itemOnHand(e.vendor_item_id) >= e.qty)))) && !s.combined_into));
 // R3 SO #5: one slip per order; multiple to the same place numbered 1 of N, 2 of N
 const slips = computed(() => {
   const by = {}; readyToShip.value.forEach((so) => { const key = so.shipping_address || '—'; (by[key] = by[key] || []).push(so); });
@@ -202,7 +205,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
         <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 backdrop-blur text-white hover:bg-white/15" @click="showEmails=true">Notifications · {{ store.emails.length }}</button>
         <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 backdrop-blur text-white hover:bg-white/15" @click="showShipments=true">Shipments · {{ store.shipments.length }}</button>
         <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 backdrop-blur text-white hover:bg-white/15" @click="openLabels()">Shipping labels <ReqTag code="SO-5" text="V3 SO #5 — One label per order, numbered 1 of N to the same place." /> <ReqTag ver="V4" code="SO-5+" text="Real courier labels (FedEx/UPS/USPS/Freight) with QR code + mock tracking; tick-box to choose which to print." /></button>
-        <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 backdrop-blur text-white hover:bg-white/15" @click="openCombine()">Combine</button>
+        <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 backdrop-blur text-white hover:bg-white/15" @click="openCombine()">Combine<span v-if="combineHint" class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-bold" title="Orders going to the same place can be combined">{{ combineHint }}</span></button>
         <button class="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-semibold bg-white text-slate-800 hover:bg-white/90" @click="openForm()">+ New SO</button>
       </template>
     </Hero>
@@ -404,12 +407,12 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
     </Modal>
 
     <!-- Combine -->
-    <Modal v-if="showCombine" title="Combine sales orders" sub="Multiple SOs to the same Regional → one shipment, items tracked per facility." wide @close="showCombine=false">
+    <Modal v-if="showCombine" title="Combine sales orders" sub="Only orders going to the same recipient AND address can be combined into one shipment." wide @close="showCombine=false">
       <label class="text-sm block mb-3"><span class="block text-slate-600 mb-1">Regional</span><select v-model="combineReg" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" @change="combineSel=[]"><option v-for="r in store.regionals" :key="r.id" :value="r.id">{{ r.name }} ({{ r.area }})</option></select></label>
       <div class="space-y-2">
-        <label v-for="so in combinable" :key="so.id" class="flex items-center gap-3 rounded-lg ring-1 ring-slate-200 px-3 py-2 text-sm cursor-pointer">
-          <input type="checkbox" :checked="combineSel.includes(so.id)" @change="toggleCombine(so.id)" />
-          <span class="font-mono text-xs">{{ so.so_number }}</span><span class="text-slate-600">→ {{ recipientLabel(so) }}</span><span class="ml-auto text-slate-400">{{ so.items.length }} line(s)</span>
+        <label v-for="so in combinable" :key="so.id" class="flex items-center gap-3 rounded-lg ring-1 ring-slate-200 px-3 py-2 text-sm cursor-pointer" :class="{'opacity-40': combineDestKey && store.soDestKey(so)!==combineDestKey && !combineSel.includes(so.id)}">
+          <input type="checkbox" :checked="combineSel.includes(so.id)" :disabled="combineDestKey && store.soDestKey(so)!==combineDestKey && !combineSel.includes(so.id)" @change="toggleCombine(so.id)" />
+          <span class="font-mono text-xs">{{ so.so_number }}</span><span class="text-slate-600">→ {{ recipientLabel(so) }}</span><span class="text-[11px] text-slate-400 truncate max-w-[170px]">{{ so.shipping_address }}</span><span class="ml-auto text-slate-400">{{ so.items.length }} line(s)</span>
         </label>
         <p v-if="!combinable.length" class="text-xs text-slate-400">No combinable SOs for this Regional (need draft/in-progress orders).</p>
       </div>
@@ -420,7 +423,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
     <!-- Shipments -->
     <Modal v-if="showShipments" title="Shipments" sub="Shipped orders and combined shipments, grouped by facility." wide @close="showShipments=false">
       <div v-for="sh in store.shipments" :key="sh.id" class="rounded-xl border border-slate-200 mb-3">
-        <div class="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100"><div class="font-semibold text-slate-800"><span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 align-middle" :class="sh.single_so ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'">{{ sh.single_so ? 'SINGLE' : 'COMBINED' }}</span>{{ sh.shipment_no }} <span class="text-xs font-normal text-slate-500">· {{ (store.regionalById(sh.regional_id)||{}).name }} · SOs {{ sh.so_numbers.join(', ') }}</span></div><div class="text-xs text-slate-500">freight {{ money(sh.shipping_cost) }}</div></div>
+        <div class="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100"><div class="font-semibold text-slate-800"><span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 align-middle" :class="sh.single_so ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'">{{ sh.single_so ? 'SINGLE' : 'COMBINED' }}</span>{{ sh.shipment_no }} <span class="text-xs font-normal text-slate-500">· {{ sh.recipient_label || (store.regionalById(sh.regional_id)||{}).name }} · SOs {{ sh.so_numbers.join(', ') }}</span></div><div class="text-xs text-slate-500"><span v-if="sh.status" class="mr-2 text-[10px] font-semibold uppercase" :class="sh.status==='Delivered'?'text-emerald-600':'text-slate-400'">{{ sh.status }}</span>freight {{ money(sh.shipping_cost) }}</div></div>
         <div class="p-3 grid gap-2 sm:grid-cols-2"><div v-for="(rows,fid) in sh.byFacility" :key="fid" class="rounded-lg ring-1 ring-slate-100 p-2"><div class="text-xs font-semibold text-slate-700 mb-1">{{ (store.facilityById(fid)||{}).name }}</div><div v-for="(r,i) in rows" :key="i" class="text-xs text-slate-500 flex justify-between"><span>{{ r.qty }}× {{ r.name }}</span><span class="font-mono text-slate-400">{{ r.so }}</span></div></div></div>
       </div>
       <p v-if="!store.shipments.length" class="text-center text-slate-400 text-sm py-6">No shipments yet — ship an order, or use Combine to group orders for one Regional.</p>

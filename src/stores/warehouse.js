@@ -419,7 +419,7 @@ export const useWarehouseStore = defineStore('warehouse', {
           cart_type: c.cart_type || '', bp_machine: c.bp_device || '', key: c.key_type || '',
           tablet_type: (c.fields && c.fields.tablet_type) || '', tablet_number: c.tablet_number || '',
           clini_omni: '', basket_type: '', lte: '', regional: reg ? reg.name : (c.regional || ''),
-          condition: c.condition || 'New', cost: c.cost || 0, fields: c.fields || {}, _cart: true,
+          condition: c.condition || 'New', refurbished: !!c.refurbished, ready: c.ready !== false, cost: c.cost || 0, fields: c.fields || {}, _cart: true,
         };
       };
     },
@@ -489,6 +489,15 @@ export const useWarehouseStore = defineStore('warehouse', {
     itemById: (s) => { const m = new Map(s.items.map((i) => [i.id, i])); return (id) => m.get(id); },
     groupById: (s) => { const m = new Map(s.groups.map((g) => [g.id, g])); return (id) => m.get(id); },
     facilityById: (s) => (id) => s.facilities.find((f) => f.id === id),
+    // X2/S9: facilities that actually have something in transit to them (a shipped/in-progress SO or a
+    // shipment not yet delivered). The Cart-Received flow should only offer THESE facilities, never any facility.
+    facilitiesAwaitingReceipt(s) {
+      const ids = new Set();
+      (s.shipments || []).forEach((sh) => { if (sh.status !== 'Delivered' && sh.byFacility) Object.keys(sh.byFacility).forEach((fid) => ids.add(fid)); });
+      (s.salesOrders || []).forEach((so) => { if (['in_progress', 'shipped'].includes(so.status)) { if (so.facility_id) ids.add(so.facility_id); (so.items || []).forEach((l) => { if (l.facility_id) ids.add(l.facility_id); }); } });
+      (s.facilities || []).forEach((f) => { if (f.cart_shipment_date && f.status !== 'Received') ids.add(f.id); });
+      return (s.facilities || []).filter((f) => ids.has(f.id));
+    },
     regionalById: (s) => (id) => s.regionals.find((r) => r.id === id),
     userById: (s) => (id) => s.users.find((u) => u.id === id),
     providerList: (s) => s.users.filter((u) => u.role === 'Provider'),
@@ -527,9 +536,10 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     assemblyUnitCost() { return (defId) => { const exp = this.expandAssembly(defId, 1); return r2(Object.keys(exp).reduce((s, k) => s + exp[k] * this.fifoUnitCost(k), 0)); }; },
     assemblyBuildable() { return (defId) => { const exp = this.expandAssembly(defId, 1); const ks = Object.keys(exp); if (!ks.length) return 0; return Math.floor(Math.min(...ks.map((k) => { const it = this.itemById(k); return it ? (it.qty_onhand || 0) / exp[k] : 0; }))); }; },
-    availableUnits(s) { return (defId) => (s.carts || []).filter((c) => c.assembly_id === defId && c.location === 'Warehouse'); },
+    availableUnits(s) { return (defId) => (s.carts || []).filter((c) => c.assembly_id === defId && c.location === 'Warehouse' && !(c.condition === 'Refurbished' && c.ready === false)); },
+    refurbAwaitingQC(s) { return (s.carts || []).filter((c) => c.condition === 'Refurbished' && c.ready === false); }, // R3
     // V6 CA/SO-5: pick from a specific pool — New vs Refurbished — never auto-mixed.
-    availableUnitsByCondition(s) { return (defId, condition) => (s.carts || []).filter((c) => c.assembly_id === defId && c.location === 'Warehouse' && (!condition || (c.condition || 'New') === condition)); },
+    availableUnitsByCondition(s) { return (defId, condition) => (s.carts || []).filter((c) => c.assembly_id === defId && c.location === 'Warehouse' && (!condition || (c.condition || 'New') === condition) && !(c.condition === 'Refurbished' && c.ready === false)); },
     refurbCreditRate(s) { return (s.settings && s.settings.refurbCreditRate != null) ? s.settings.refurbCreditRate : 0.8; },
     // V6 CA-3: the refund logic — how much we credit the facility on return, and what the refurbished cart is then worth.
     // Placeholder until the real refund formula is provided; swap this one function and the whole app follows.
@@ -907,6 +917,11 @@ export const useWarehouseStore = defineStore('warehouse', {
       return so;
     },
     markQueuedShipped(so_number) { (this.shipQueue || []).forEach((q) => { if (q.so_number === so_number) q.status = 'Shipped'; }); },
+    // C1/C3: destination identity of an SO (recipient + address) + a human label used on shipment rows.
+    soDestKey(so) { const t = so.recipient_type || (so.facility_id ? 'facility' : (so.regional_id ? 'regional' : '')); const id = so.recipient_id || so.facility_id || so.regional_id || ''; return t + ':' + id + '|' + (so.shipping_address || '').trim().toLowerCase(); },
+    shipmentRecipientLabel(so) { if (so.facility_id) return (this.facilityById(so.facility_id) || {}).name || so.shipping_address || 'Facility'; if (so.regional_id) return (this.regionalById(so.regional_id) || {}).name || so.shipping_address || 'Regional'; return so.shipping_address || 'Recipient'; },
+    // S6: completing an SO = proof of delivery / received; also marks its shipment delivered.
+    completeSalesOrder(so) { so.status = 'completed'; so.completed_at = new Date().toISOString(); so.delivered = true; if (!so.proof_of_delivery) so.proof_of_delivery = 'Delivered ' + TODAY; (this.shipments || []).forEach((sh) => { if (sh.single_so === so.so_number || (sh.so_numbers || []).includes(so.so_number)) sh.status = 'Delivered'; }); this.logActivity(so.so_number + ' completed — proof of delivery recorded'); return so; },
     // S2/C4: create (or refresh) a single-SO shipment record so a shipped order appears under Shipments.
     ensureShipmentForSO(so, opts = {}) {
       this.shipments = this.shipments || [];
@@ -916,21 +931,24 @@ export const useWarehouseStore = defineStore('warehouse', {
       let sh = this.shipments.find((x) => x.single_so === so.so_number);
       if (!sh) {
         this.counters.ship = (this.counters.ship || 0) + 1;
-        sh = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, single_so: so.so_number, so_numbers: [so.so_number], shipping_cost: Number(so.shipping_cost) || 0, byFacility, status: opts.status || 'Shipped', created_at: new Date().toISOString() };
+        sh = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, recipient_label: this.shipmentRecipientLabel(so), single_so: so.so_number, so_numbers: [so.so_number], shipping_cost: Number(so.shipping_cost) || 0, byFacility, status: opts.status || 'Shipped', created_at: new Date().toISOString() };
         this.shipments.unshift(sh);
         this.logActivity('Shipment ' + sh.shipment_no + ' created for ' + so.so_number);
       } else { sh.byFacility = byFacility; sh.shipping_cost = Number(so.shipping_cost) || 0; sh.regional_id = regional_id; if (opts.status) sh.status = opts.status; }
       return sh;
     },
     combineSOs(soIds, shipping_cost) {
-      const sos = this.salesOrders.filter((s) => soIds.includes(s.id)); if (sos.length < 2) return null;
+      const sos = this.salesOrders.filter((s) => soIds.includes(s.id)); if (sos.length < 2) return { error: 'Select at least two orders to combine.' };
+      // C1: only orders shipping to the SAME destination (same recipient + address) can be combined.
+      const key0 = this.soDestKey(sos[0]);
+      if (!sos.every((s) => this.soDestKey(s) === key0)) return { error: 'These orders ship to different places — only orders going to the same recipient and address can be combined.' };
       const regional_id = sos[0].regional_id || (this.facilityById(sos[0].facility_id) || {}).regional_id;
       const byFacility = {};
       sos.forEach((so) => { so.items.forEach((l) => { const fid = l.facility_id || so.facility_id; (byFacility[fid] = byFacility[fid] || []).push({ so: so.so_number, name: l.name, qty: l.qty, vendor_item_id: l.vendor_item_id }); }); so.combined_into = true; });
       // fold any single-SO shipments for these orders into the combined one (avoid duplicate shipment rows).
       const _nums = sos.map((s) => s.so_number); this.shipments = (this.shipments || []).filter((sh) => !(sh.single_so && _nums.includes(sh.single_so)));
       this.counters.ship += 1;
-      const shipment = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, combined: true, so_numbers: sos.map((s) => s.so_number), shipping_cost: Number(shipping_cost) || 0, byFacility, status: 'Combined', created_at: new Date().toISOString() };
+      const shipment = { id: uid('shp'), shipment_no: 'SHP-2026-' + String(this.counters.ship).padStart(3, '0'), regional_id, recipient_label: this.shipmentRecipientLabel(sos[0]), combined: true, so_numbers: sos.map((s) => s.so_number), shipping_cost: Number(shipping_cost) || 0, byFacility, status: 'Combined', created_at: new Date().toISOString() };
       this.shipments.unshift(shipment);
       return shipment;
     },
@@ -994,6 +1012,7 @@ export const useWarehouseStore = defineStore('warehouse', {
             cart.cost = credit;
             cart.condition = 'Refurbished';
             cart.refurbished = true;
+            cart.ready = false; // R3: a returned/refurbished cart must pass a quality check before it can ship again
             cart.refurb_date = TODAY;
             cart.returned_from = ret.source_label;
             this.setCartLocation(cart, 'Warehouse', null);
@@ -1062,6 +1081,8 @@ export const useWarehouseStore = defineStore('warehouse', {
       const isSingle = a.assembly_kind === 'single';
       // IT-4: a unit code/asset tag is mandatory for every assembled unit (cart or single-item).
       if (!code || !String(code).trim()) return { error: isSingle ? 'Unit Code is required.' : 'Cart Code is required.' };
+      // A2: cart/unit codes must be unique across all built units — block a duplicate.
+      if ((this.carts || []).some((c) => (c.code || '').trim().toLowerCase() === String(code).trim().toLowerCase())) return { error: (isSingle ? 'Unit' : 'Cart') + ' Code "' + String(code).trim() + '" already exists — codes must be unique.' };
       const exp = this.expandAssembly(assembly_id, 1);
       for (const k of Object.keys(exp)) { const it = this.itemById(k); if (!it || (it.qty_onhand || 0) < exp[k]) return { error: 'Not enough ' + (it ? it.name : k) + ' in stock.' }; }
       // marking assembled removes the parts from inventory (FIFO, landed rides along) and creates exactly ONE asset.
@@ -1090,6 +1111,7 @@ export const useWarehouseStore = defineStore('warehouse', {
       return { built, errors };
     },
     editAssemblyUnit(cartId, patch) { const c = this.carts.find((x) => x.id === cartId); if (c) Object.assign(c, patch); return c; },
+    markCartReady(cartId) { const c = (this.carts || []).find((x) => x.id === cartId); if (c) { c.ready = true; this.logActivity('Refurbished cart ' + c.code + ' passed QC — ready to ship'); } return c; }, // R3
 
     markNotificationRead(id) { const n = (this.notifications || []).find((x) => x.id === id); if (n) n.read = true; },
     markAllNotificationsRead() { (this.notifications || []).forEach((n) => { n.read = true; }); },
