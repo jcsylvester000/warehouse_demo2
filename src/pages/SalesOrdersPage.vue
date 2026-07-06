@@ -288,7 +288,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
                 <tr>
                   <td class="px-4 py-2 text-slate-700">
                     <button v-if="l.kind==='group'" class="mr-1 text-slate-400" @click="l.expanded=!l.expanded">{{ l.expanded ? '▾' : '▸' }}</button>
-                    {{ l.name }}<Badge v-if="l.kind==='group'" tone="emerald" class="ml-1">group</Badge><Badge v-if="l.kind==='assembly'" tone="violet" class="ml-1">assembly</Badge>
+                    {{ l.name }}<Badge v-if="l.kind==='group'" tone="emerald" class="ml-1">group</Badge><Badge v-if="l.kind==='assembly'" tone="rose" class="ml-1 font-bold">◆ assembly</Badge>
                   </td>
                   <td class="px-4 py-2"><select v-model="l.facility_id" class="h-8 px-2 rounded border border-slate-300 text-xs"><option v-for="f in store.facilities" :key="f.id" :value="f.id">{{ f.name }}</option></select></td>
                   <td class="px-4 py-2 text-right"><input v-model.number="l.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" /></td>
