@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useWarehouseStore } from '@/stores/warehouse';
 import { useToast } from '@/composables/useToast';
 import { useRouter } from 'vue-router';
@@ -57,6 +57,8 @@ const showAdd = ref(false); const addKind = ref('item');
 const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false, image: '' });
 const groupForm = reactive({ id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [], image: '' });
 const asmForm = reactive({ id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
+// M5: the Key Type follows the Cart Type (e.g. CTA cart → CTA key) — unless you've typed a different key.
+watch(() => asmForm.asset_defaults.cart_type, (nv, ov) => { const kt = (asmForm.asset_defaults.key_type || '').trim(); if (!kt || kt === (ov || '').trim()) asmForm.asset_defaults.key_type = nv; });
 function openAdd() {
   addKind.value = 'item';
   Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false, image: '' });
