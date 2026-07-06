@@ -132,7 +132,8 @@ const batch = reactive({ assembly_id: '', condition: 'New', rows: [] });
 const batchDef = computed(() => store.assemblyById(batch.assembly_id));
 const batchIsCart = computed(() => !!(batchDef.value && batchDef.value.assembly_kind !== 'single'));
 function asmContents(id) { const a = store.assemblyById(id); if (!a) return ''; if (a.assembly_kind === 'single') return (store.itemById(a.source_item_id) || {}).name || ''; return (a.composition || []).map((m) => m.qty + '× ' + (m.kind === 'group' ? ((store.groupById(m.ref_id) || {}).name || 'group') : ((store.itemById(m.ref_id) || {}).name || 'item'))).join(', '); }
-function newBatchRow() { const f = {}; const d = batchDef.value; if (d && d.assembly_kind === 'single') (d.fields || []).forEach((k) => { f[k] = ''; }); return { code: '', cart_color: '', tablet_number: '', fields: f }; }
+function suggestCode() { let max = 0; const scan = (code) => { const m = String(code || '').match(/(\d+)\s*$/); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } }; (store.carts || []).forEach((c) => scan(c.code)); (batch.rows || []).forEach((r) => scan(r.code)); return String(max + 1).padStart(4, '0'); }
+function newBatchRow() { const f = {}; const d = batchDef.value; if (d && d.assembly_kind === 'single') (d.fields || []).forEach((k) => { f[k] = ''; }); return { code: suggestCode(), cart_color: '', tablet_number: '', fields: f }; }
 function openBatch(id) { const d = id ? store.assemblyById(id) : (store.assemblies.find((a) => a.assembly_kind !== 'single') || store.assemblies[0] || {}); batch.assembly_id = (d && d.id) || ''; batch.condition = 'New'; batch.rows = []; batch.rows.push(newBatchRow()); showDetail.value = false; showBatch.value = true; }
 function onBatchAsm() { batch.rows = [newBatchRow()]; }
 function addBatchRow() { batch.rows.push(newBatchRow()); }
@@ -152,6 +153,9 @@ function saveBatch() {
 const showEditUnit = ref(false); const editUnit = reactive({ id: '', code: '', cart_color: '', tablet_number: '', key_type: '', bp_device: '' });
 function openEditUnit(c) { Object.assign(editUnit, { id: c.id, code: c.code, cart_color: c.cart_color || '', tablet_number: c.tablet_number || '', key_type: c.key_type || '', bp_device: c.bp_device || '' }); showEditUnit.value = true; }
 function saveEditUnit() { if (!editUnit.code.trim()) return toast.error('Cart Code is required.'); store.editAssemblyUnit(editUnit.id, { code: editUnit.code.trim(), cart_color: editUnit.cart_color, tablet_number: editUnit.tablet_number, key_type: editUnit.key_type, bp_device: editUnit.bp_device }); toast.success('Assembly updated.'); showEditUnit.value = false; }
+const editUnitCart = computed(() => store.carts.find((c) => c.id === editUnit.id));
+function addComp(id) { const r = store.addCartComponent(editUnit.id, id, 1); if (r && r.error) toast.error(r.error); else toast.success('Part added to the cart.'); }
+function removeComp(vid) { store.removeCartComponent(editUnit.id, vid); toast.info('Part removed — returned to inventory.'); }
 
 /* ---------- manage assembly (cart) types ---------- */
 const showTypes = ref(false); const newTypeName = ref('');
@@ -540,6 +544,15 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="editUnit.key_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="editUnit.bp_device" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Tablet Number</span><input v-model="editUnit.tablet_number" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+      </div>
+      <div class="mt-4 pt-3 border-t border-slate-100">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Parts in this cart <span class="text-slate-400 font-normal normal-case">— add a missing item, or remove one (returns it to inventory)</span></div>
+        <div v-for="(m,i) in (editUnitCart ? editUnitCart.components : [])" :key="i" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-1.5 mb-1">
+          <span class="flex-1 text-slate-700">{{ m.name }}</span><span class="text-slate-400 text-xs tabular-nums">×{{ m.qty }}</span>
+          <button class="text-rose-500 text-xs font-semibold hover:underline" @click="removeComp(m.vendor_item_id)">Remove</button>
+        </div>
+        <p v-if="editUnitCart && !editUnitCart.components.length" class="text-xs text-slate-400 mb-1">No parts recorded on this cart.</p>
+        <div class="mt-1"><SearchPicker :options="store.catalogLite.filter(o=>!o.is_group)" placeholder="Add a missing part…" @pick="addComp" /></div>
       </div>
       <template #footer><Btn variant="secondary" @click="showEditUnit=false">Cancel</Btn><Btn @click="saveEditUnit">Save <ReqTag ver="V4" code="AS-6" text="V4 Assemblies #6 — edit an assembly after it is built." /></Btn></template>
     </Modal>

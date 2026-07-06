@@ -1146,6 +1146,30 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     editAssemblyUnit(cartId, patch) { const c = this.carts.find((x) => x.id === cartId); if (c) Object.assign(c, patch); return c; },
     markCartReady(cartId) { const c = (this.carts || []).find((x) => x.id === cartId); if (c) { c.ready = true; this.logActivity('Refurbished cart ' + c.code + ' passed QC — ready to ship'); } return c; }, // R3
+    // M1: edit a built cart's parts — add a missing item (consumes from inventory) or remove one (returns it).
+    addCartComponent(cartId, vendor_item_id, qty) {
+      const c = (this.carts || []).find((x) => x.id === cartId); if (!c) return { error: 'Cart not found.' };
+      const it = this.itemById(vendor_item_id); if (!it) return { error: 'Item not found.' };
+      const q = Math.max(1, Number(qty) || 1);
+      if ((it.qty_onhand || 0) < q) return { error: 'Not enough ' + it.name + ' in stock.' };
+      const r = this.issueFIFO(vendor_item_id, q);
+      this.logStock(vendor_item_id, 'out', q, 'Added to cart', c.code, null);
+      const ex = (c.components = c.components || []).find((m) => m.vendor_item_id === vendor_item_id);
+      if (ex) ex.qty = (ex.qty || 0) + q; else c.components.push({ vendor_item_id, name: it.name, qty: q, unit_cost: r2(r.total / q) });
+      c.cost = r2((c.cost || 0) + r.total);
+      this.logActivity('Added ' + q + '× ' + it.name + ' to cart ' + c.code);
+      return { cart: c };
+    },
+    removeCartComponent(cartId, vendor_item_id) {
+      const c = (this.carts || []).find((x) => x.id === cartId); if (!c) return;
+      const idx = (c.components || []).findIndex((m) => m.vendor_item_id === vendor_item_id); if (idx < 0) return;
+      const comp = c.components[idx]; const it = this.itemById(vendor_item_id);
+      if (it) this.addLot(it, comp.qty, comp.unit_cost || it.cost || 0, 0, 'returned from cart ' + c.code);
+      this.logStock(vendor_item_id, 'in', comp.qty, 'Removed from cart', c.code, null);
+      c.cost = r2((c.cost || 0) - ((comp.qty || 0) * (comp.unit_cost || 0)));
+      c.components.splice(idx, 1);
+      this.logActivity('Removed ' + comp.name + ' from cart ' + c.code);
+    },
 
     markNotificationRead(id) { const n = (this.notifications || []).find((x) => x.id === id); if (n) n.read = true; },
     markAllNotificationsRead() { (this.notifications || []).forEach((n) => { n.read = true; }); },

@@ -31,6 +31,10 @@ const chips = computed(() => [
 const statusTone = (s) => ({ draft: 'slate', in_progress: 'amber', shipped: 'blue', completed: 'emerald', backorder: 'rose' }[s] || 'slate');
 const statusLabel = (s) => ({ draft: 'Draft', in_progress: 'In Progress', shipped: 'Shipped', completed: 'Completed', backorder: 'Back order' }[s] || s);
 const backordersReady = computed(() => store.backordersReady());
+// M3: filter the order list by status (e.g. warehouse shows only confirmed orders).
+const soFilter = ref('all');
+const SO_FILTERS = [['all', 'All'], ['draft', 'Draft'], ['in_progress', 'Confirmed'], ['shipped', 'Shipped'], ['completed', 'Completed'], ['backorder', 'Back orders']];
+const visibleSOs = computed(() => soFilter.value === 'all' ? store.salesOrders : store.salesOrders.filter((s) => s.status === soFilter.value));
 
 const showConfirmDlg = ref(false); const confirmSOref = ref(null);
 const confirmRegional = computed(() => { const so = confirmSOref.value; if (!so) return null; const rid = so.regional_id || (store.facilityById(so.facility_id) || {}).regional_id; return store.regionalById(rid); });
@@ -123,7 +127,7 @@ function saveForm() {
     : { kind: 'item', vendor_item_id: l.vendor_item_id, name: l.name, facility_id: l.facility_id || defaultLineFacility(), qty: Math.max(Number(l.qty) || 0, l.qty_shipped || 0), qty_shipped: l.qty_shipped || 0, shipped_cost_total: l.shipped_cost_total || 0, shipped_detail: l.shipped_detail || [], unit_cost: store.fifoUnitCost(l.vendor_item_id) });
   const base = { recipient_type: form.recipient_type, recipient_id: form.recipient_id, ship_to_type: form.ship_to_type === 'address' ? 'address' : (form.ship_to_type === 'regional' ? 'regional' : 'facility'), regional_id: form.regional_id || null, facility_id: form.facility_id || null, order_date: form.order_date, expected_date: form.expected_date, delivery_method: form.delivery_method, shipping_address: form.shipping_address, shipping_cost: Number(form.shipping_cost) || 0, landed_costs: form.landed_costs, notes: form.notes, items };
   if (editing.value) { store.updateSalesOrder(form.id, base); toast.success(form.so_number + ' updated.'); }
-  else { store.addSalesOrder({ id: uid('so'), so_number: store.nextSoNumber(), status: 'draft', backorder_of: null, groups: [], attachments: [], ...base }); toast.success('Sales order created (customer notified).'); }
+  else { store.addSalesOrder({ id: uid('so'), so_number: store.nextSoNumber(), status: 'draft', created_by: 'Malky Locker', created_at: TODAY, backorder_of: null, groups: [], attachments: [], ...base }); toast.success('Sales order created (customer notified).'); }
   showForm.value = false;
 }
 
@@ -229,12 +233,15 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
     </div>
 
     <Card :padded="false">
+      <div class="flex flex-wrap items-center gap-1.5 px-4 pt-3 pb-1">
+        <button v-for="f in SO_FILTERS" :key="f[0]" class="text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors" :class="soFilter===f[0] ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'" @click="soFilter=f[0]">{{ f[1] }} <span class="opacity-60">{{ f[0]==='all' ? store.salesOrders.length : store.salesOrders.filter(s=>s.status===f[0]).length }}</span></button>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider"><tr><th class="px-5 py-2.5 text-left font-semibold">SO #</th><th class="px-5 py-2.5 text-left font-semibold">For</th><th class="px-5 py-2.5 text-left font-semibold">Ship to</th><th class="px-5 py-2.5 text-right font-semibold">Lines</th><th class="px-5 py-2.5 text-right font-semibold">Total</th><th class="px-5 py-2.5 text-left font-semibold">Status</th><th class="px-5 py-2.5"></th></tr></thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="so in store.salesOrders" :key="so.id" class="hover:bg-indigo-50/40 cursor-pointer" @click="openSO(so)">
-              <td class="px-5 py-3"><div class="font-mono text-xs text-slate-700">{{ so.so_number }}</div><div v-if="so.backorder_of" class="text-[10px] text-rose-600">back order of {{ so.backorder_of }}</div><div v-else-if="so.combined_into" class="text-[10px] text-blue-600">combined</div><div v-if="(so.attachments||[]).length" class="text-[10px] text-indigo-600">📎 {{ so.attachments.length }}</div></td>
+            <tr v-for="so in visibleSOs" :key="so.id" class="hover:bg-indigo-50/40 cursor-pointer" @click="openSO(so)">
+              <td class="px-5 py-3"><div class="font-mono text-xs text-slate-700">{{ so.so_number }}</div><div v-if="so.created_by" class="text-[10px] text-slate-400">by {{ so.created_by }}</div><div v-if="so.backorder_of" class="text-[10px] text-rose-600">back order of {{ so.backorder_of }}</div><div v-else-if="so.combined_into" class="text-[10px] text-blue-600">combined</div><div v-if="(so.attachments||[]).length" class="text-[10px] text-indigo-600">📎 {{ so.attachments.length }}</div></td>
               <td class="px-5 py-3 text-slate-700">{{ recipientLabel(so) }}</td>
               <td class="px-5 py-3 text-slate-500 text-xs max-w-[220px] truncate" :title="so.shipping_address">{{ so.shipping_address || '—' }}</td>
               <td class="px-5 py-3 text-right tabular-nums">{{ so.items.length }}</td>
