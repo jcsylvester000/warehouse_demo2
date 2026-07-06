@@ -26,8 +26,8 @@ const showStart = ref(false);
 const start = reactive({ source_type: 'facility', source_id: '', so_ref: '', sel: [] });
 const assetSearch = ref('');
 function openStart() { Object.assign(start, { source_type: 'facility', source_id: store.facilities[0].id, so_ref: '', sel: [] }); assetSearch.value = ''; showStart.value = true; }
-function onSourceType() { start.source_id = (start.source_type === 'facility' ? store.facilities[0] : store.employeeList[0]).id; start.sel = []; }
-const sourceOptions = computed(() => (start.source_type === 'facility' ? store.facilities : store.employeeList));
+function onSourceType() { start.source_id = (start.source_type === 'facility' ? store.facilities[0] : start.source_type === 'regional' ? store.regionals[0] : store.employeeList[0]).id; start.sel = []; }
+const sourceOptions = computed(() => (start.source_type === 'facility' ? store.facilities : start.source_type === 'regional' ? store.regionals : store.employeeList));
 const assets = computed(() => {
   const list = store.returnableAssetsFor(start.source_type, start.source_id);
   const s = assetSearch.value.trim().toLowerCase();
@@ -105,8 +105,8 @@ function doConfirm() {
     <Modal v-if="showStart" title="Start a return" sub="Where is it coming from? Search and pick the assets." wide @close="showStart=false">
       <div class="space-y-3">
         <div class="grid grid-cols-3 gap-3">
-          <label class="text-sm"><span class="block text-slate-600 mb-1">Coming from</span><select v-model="start.source_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" @change="onSourceType"><option value="facility">A facility</option><option value="employee">An employee</option></select></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">{{ start.source_type==='facility'?'Facility':'Employee' }}</span><select v-model="start.source_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" @change="start.sel=[]"><option v-for="o in sourceOptions" :key="o.id" :value="o.id">{{ o.name }}</option></select></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">Coming from</span><select v-model="start.source_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" @change="onSourceType"><option value="facility">A facility</option><option value="regional">A regional</option><option value="employee">An employee</option></select></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">{{ start.source_type==='facility'?'Facility':start.source_type==='regional'?'Regional':'Employee' }}</span><select v-model="start.source_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" @change="start.sel=[]"><option v-for="o in sourceOptions" :key="o.id" :value="o.id">{{ o.name }}</option></select></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">From SO (optional)</span><input v-model="start.so_ref" list="ret-so" placeholder="e.g. SO-2026-0142" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /><datalist id="ret-so"><option v-for="so in shippedSOs" :key="so.id" :value="so.so_number" /></datalist></label>
         </div>
         <div class="flex items-center gap-2">

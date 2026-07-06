@@ -673,15 +673,15 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
 
     // ---- Inventory items / groups ----
-    addItem({ name, vendor_id, item_type_id, cost, qty_onhand, threshold, bin_location, is_active, assembly_only }) {
+    addItem({ name, vendor_id, item_type_id, cost, qty_onhand, threshold, bin_location, is_active, assembly_only, image }) {
       const q = Number(qty_onhand) || 0;
-      const it = { id: uid('i'), sku: this.nextSku(), name, vendor_id: vendor_id || '', item_type_id: item_type_id || '', cost: Number(cost) || 0, threshold: Number(threshold) || 0, bin_location: bin_location || '', is_active: is_active !== false, assembly_only: !!assembly_only, is_tracked_asset: false, lots: [] };
+      const it = { id: uid('i'), sku: this.nextSku(), name, vendor_id: vendor_id || '', item_type_id: item_type_id || '', cost: Number(cost) || 0, threshold: Number(threshold) || 0, bin_location: bin_location || '', is_active: is_active !== false, assembly_only: !!assembly_only, image: image || '', is_tracked_asset: false, lots: [] };
       if (q > 0) it.lots.push({ id: uid('lot'), qty: q, unit_cost: Number(cost) || 0, landed: 0, received_at: TODAY, ref: 'opening' });
       it.qty_onhand = q; it.qty_available = q; this.items.unshift(it); return it;
     },
     updateItem(id, patch) { const it = this.itemById(id); if (it) Object.assign(it, patch); },
     deactivateItem(id) { const it = this.itemById(id); if (it) it.is_active = false; const g = this.groupById(id); if (g) g.is_active = false; },
-    addGroup({ name, description, members, assembly_only, vendor_id }) { const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', vendor_id: vendor_id || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
+    addGroup({ name, description, members, assembly_only, vendor_id, image }) { const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', vendor_id: vendor_id || '', image: image || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
     updateGroup(id, patch) { const g = this.groupById(id); if (g) Object.assign(g, patch); },
 
     // ---- Purchase Orders ----
@@ -994,12 +994,16 @@ export const useWarehouseStore = defineStore('warehouse', {
       } else if (source_type === 'employee') {
         const u = this.userById(source_id); const uname = u ? u.name : '';
         this.userAssets.filter((a) => a.user === uname && a.status !== 'Returned').forEach((a) => out.push({ key: 'ua:' + a.id, kind: a.item_type === 'Trivia Equipment' ? 'trivia' : 'laptop', ua_id: a.id, label: a.item + ' · ' + a.asset_tag, asset_tag: a.asset_tag, cost: a.cost || 0 }));
+      } else if (source_type === 'regional') {
+        // R4: returns from a Regional — the tracked carts assigned to that regional.
+        this.carts.filter((c) => c.regional_id === source_id).forEach((c) => out.push({ key: 'cart:' + c.id, kind: 'cart', cart_id: c.id, label: c.code + ' (' + c.cart_type + ' cart)', asset_tag: c.code, cost: c.cost, components: c.components }));
       }
       return out;
     },
     sourceLabel(source_type, source_id) {
       if (source_type === 'facility') return (this.facilityById(source_id) || {}).name || '';
       if (source_type === 'employee') return (this.userById(source_id) || {}).name || '';
+      if (source_type === 'regional') return (this.regionalById(source_id) || {}).name || '';
       return '';
     },
     startAssetReturn({ source_type, source_id, so_ref, assets }) {

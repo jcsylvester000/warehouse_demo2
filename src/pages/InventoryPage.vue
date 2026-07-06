@@ -52,13 +52,13 @@ const memberName = (m) => (m.kind === 'group' ? (store.groupById(m.ref_id) || {}
 
 /* ---------- add (single OR group) ---------- */
 const showAdd = ref(false); const addKind = ref('item');
-const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
-const groupForm = reactive({ id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [] });
+const itemForm = reactive({ id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false, image: '' });
+const groupForm = reactive({ id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [], image: '' });
 const asmForm = reactive({ id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
 function openAdd() {
   addKind.value = 'item';
-  Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false });
-  Object.assign(groupForm, { id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [] });
+  Object.assign(itemForm, { id: null, name: '', vendor_id: '', item_type_id: '', cost: '', qty_onhand: 0, threshold: 0, bin_location: '', is_active: true, assembly_only: false, image: '' });
+  Object.assign(groupForm, { id: null, name: '', description: '', vendor_id: '', assembly_only: false, members: [], image: '' });
   Object.assign(asmForm, { id: null, name: '', assembly_kind: 'cart', source_item_id: '', fields: [], assembly_type_id: (store.assemblyTypes[0] || {}).id || '', composition: [], asset_defaults: { cart_type: '', key_type: '', bp_device: '' } });
   showAdd.value = true;
 }
@@ -69,16 +69,17 @@ function onMemberPick(id) {
   groupForm.members.push({ kind, ref_id: id, qty: 1 });
 }
 const memberExclude = computed(() => [groupForm.id, ...groupForm.members.map((m) => m.ref_id)].filter(Boolean));
+function onImage(e, form) { const f = e.target.files && e.target.files[0]; if (!f) return; if (f.size > 200 * 1024) { toast.error('Image too large — please use one under 200 KB.'); return; } const r = new FileReader(); r.onload = () => { form.image = r.result; }; r.readAsDataURL(f); }
 function saveAdd() {
   if (addKind.value === 'item') {
     if (!itemForm.name.trim()) return toast.error('Item name is required.');
-    if (itemForm.id) { store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, assembly_only: itemForm.assembly_only }); toast.success('Item updated.'); }
+    if (itemForm.id) { store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, assembly_only: itemForm.assembly_only, image: itemForm.image }); toast.success('Item updated.'); }
     else { const it = store.addItem(itemForm); toast.success('Item ' + it.sku + ' added.'); }
   } else if (addKind.value === 'group') {
     if (!groupForm.name.trim() || !groupForm.members.length) return toast.error('Group name and at least one member are required.');
     const members = JSON.parse(JSON.stringify(groupForm.members));
-    if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members }); toast.success('Group updated.'); }
-    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members }); toast.success('Group ' + g.sku + ' added (its own item).'); }
+    if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); toast.success('Group updated.'); }
+    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); toast.success('Group ' + g.sku + ' added (its own item).'); }
   } else {
     if (asmForm.assembly_kind === 'single') {
       if (!asmForm.name.trim() || !asmForm.source_item_id) return toast.error('Assembly name and a source item are required.');
@@ -97,8 +98,8 @@ function saveAdd() {
   showAdd.value = false;
 }
 function editFromDetail() {
-  if (detailItem.value) { const it = detailItem.value; addKind.value = 'item'; Object.assign(itemForm, { id: it.id, name: it.name, vendor_id: it.vendor_id, item_type_id: it.item_type_id, cost: it.cost, qty_onhand: it.qty_onhand, threshold: it.threshold, bin_location: it.bin_location, is_active: it.is_active, assembly_only: !!it.assembly_only }); }
-  else if (detailGroup.value) { const g = detailGroup.value; addKind.value = 'group'; Object.assign(groupForm, { id: g.id, name: g.name, description: g.description, vendor_id: g.vendor_id || '', assembly_only: !!g.assembly_only, members: JSON.parse(JSON.stringify(g.members)) }); }
+  if (detailItem.value) { const it = detailItem.value; addKind.value = 'item'; Object.assign(itemForm, { id: it.id, name: it.name, vendor_id: it.vendor_id, item_type_id: it.item_type_id, cost: it.cost, qty_onhand: it.qty_onhand, threshold: it.threshold, bin_location: it.bin_location, is_active: it.is_active, assembly_only: !!it.assembly_only, image: it.image || '' }); }
+  else if (detailGroup.value) { const g = detailGroup.value; addKind.value = 'group'; Object.assign(groupForm, { id: g.id, name: g.name, description: g.description, vendor_id: g.vendor_id || '', assembly_only: !!g.assembly_only, members: JSON.parse(JSON.stringify(g.members)), image: g.image || '' }); }
   else if (detailAssembly.value) { const a = detailAssembly.value; addKind.value = 'assembly'; Object.assign(asmForm, { id: a.id, name: a.name, assembly_kind: a.assembly_kind || 'cart', source_item_id: a.source_item_id || '', fields: JSON.parse(JSON.stringify(a.fields || [])), assembly_type_id: a.assembly_type_id, composition: JSON.parse(JSON.stringify(a.composition || [])), asset_defaults: JSON.parse(JSON.stringify(a.asset_defaults || { cart_type: '', key_type: '', bp_device: '' })) }); }
   showDetail.value = false; showAdd.value = true;
 }
@@ -353,6 +354,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm"><span class="block text-slate-600 mb-1">Bin location</span><input v-model="itemForm.bin_location" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm flex items-center gap-2"><input v-model="itemForm.is_active" type="checkbox" /> Active</label>
           <label class="text-sm flex items-center gap-2 col-span-2"><input v-model="itemForm.assembly_only" type="checkbox" /> This item can only be shipped as an assembly <ReqTag ver="V4" code="IT-2" text="Amendment — an assembly-only item (laptop, gameshow) can't be added to a Sales Order as a loose item; it must be assembled first. A Single is never an asset." /></label>
+          <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><input type="file" accept="image/*" class="text-xs" @change="onImage($event, itemForm)" /><img v-if="itemForm.image" :src="itemForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200" /></div></label>
         </div>
 
         <!-- group -->
@@ -363,6 +365,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
             <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Description</span><input v-model="groupForm.description" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
           <label class="text-sm flex items-center gap-2"><input v-model="groupForm.assembly_only" type="checkbox" /> This group can only be shipped as an assembly <ReqTag ver="V6" code="INV-2" text="V6 Inventory 2 — a master full-cart group can only ship as an assembly; its individual parts can still ship loose." /></label>
+          <label class="text-sm block"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><input type="file" accept="image/*" class="text-xs" @change="onImage($event, groupForm)" /><img v-if="groupForm.image" :src="groupForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200" /></div></label>
           <div>
             <span class="block text-slate-600 mb-1 text-sm">Add items to this group <ReqTag code="INV-1" text="V3 Inventory #1 — Group building is fast: adding successive items to a group has no lag (lightweight search picker)." /> <span class="text-xs text-slate-400">— search & click to drop in (single items or other groups)</span></span>
             <SearchPicker multi :options="store.catalogLite" :exclude-ids="memberExclude" placeholder="Search all inventory…" @pick="onMemberPick" />
