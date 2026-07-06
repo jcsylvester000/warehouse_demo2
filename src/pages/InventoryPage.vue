@@ -242,7 +242,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
             <tbody class="divide-y divide-slate-100">
               <tr v-for="o in list" :key="o.id" class="hover:bg-indigo-50/40 cursor-pointer" @click="openDetail(o)">
                 <td class="px-5 py-3 font-mono text-xs text-slate-600">{{ o.sku }}</td>
-                <td class="px-5 py-3 font-medium text-slate-800">{{ o.name }}<Badge v-if="o.is_group" tone="emerald" class="ml-2">group</Badge><Badge v-if="o.is_assembly" tone="violet" class="ml-2">assembly</Badge><Badge v-if="!o.is_active" tone="slate" class="ml-1">inactive</Badge></td>
+                <td class="px-5 py-3 font-medium text-slate-800"><img v-if="o.image" :src="o.image" alt="" class="inline-block w-7 h-7 object-cover rounded ring-1 ring-slate-200 mr-2 align-middle" />{{ o.name }}<Badge v-if="o.is_group" tone="emerald" class="ml-2">group</Badge><Badge v-if="o.is_assembly" tone="violet" class="ml-2">assembly</Badge><Badge v-if="!o.is_active" tone="slate" class="ml-1">inactive</Badge></td>
                 <td class="px-5 py-3 text-right tabular-nums font-semibold text-slate-800">{{ o.on_hand }}</td>
                 <td class="px-5 py-3 text-slate-600">{{ o.bin }}</td>
                 <td class="px-5 py-3 text-right"><span class="text-xs text-indigo-600 font-semibold">Open →</span></td>
@@ -279,6 +279,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
     <!-- detail -->
     <Modal v-if="showDetail && detail" :title="detail.name" :sub="'Item # ' + detail.sku" wide @close="showDetail=false">
       <div v-if="detailItem" class="space-y-4">
+        <img v-if="detailItem.image" :src="detailItem.image" alt="item photo" class="w-full max-h-56 object-contain rounded-lg ring-1 ring-slate-200 bg-slate-50" />
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Vendor</div><div class="font-medium text-slate-700">{{ store.vendorName(detailItem.vendor_id) }}</div></div>
           <div><div class="text-[10px] uppercase tracking-wide text-slate-400">Type</div><div class="font-medium text-slate-700">{{ store.typeName(detailItem.item_type_id) }}<Badge v-if="store.isTrackableItem(detailItem.id)" tone="violet" class="ml-1">tracked</Badge></div></div>
@@ -298,6 +299,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         </div>
       </div>
       <div v-else-if="detailGroup" class="space-y-4">
+        <img v-if="detailGroup.image" :src="detailGroup.image" alt="group photo" class="w-full max-h-56 object-contain rounded-lg ring-1 ring-slate-200 bg-slate-50" />
         <p class="text-sm text-slate-500">{{ detailGroup.description }}</p>
         <div class="rounded-xl border border-slate-200 overflow-hidden">
           <table class="w-full text-sm"><tbody class="divide-y divide-slate-100">

@@ -557,8 +557,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     availableAssetUnits(s) { return (itemName) => (s.trackedAssets || []).filter((a) => a.status === 'In warehouse' && (!itemName || a.item === itemName)); },
     // unified catalog: single items + groups, all behaving as "items" in one searchable list
     catalog(s) {
-      const singles = s.items.map((i) => ({ id: i.id, kind: 'item', sku: i.sku, name: i.name, is_group: false, is_active: i.is_active, on_hand: i.qty_onhand, bin: i.bin_location, type: this.typeName(i.item_type_id), unit_cost: this.fifoUnitCost(i.id) }));
-      const grps = s.groups.map((g) => ({ id: g.id, kind: 'group', sku: g.sku, name: g.name, is_group: true, is_active: g.is_active !== false, on_hand: this.groupOnHand(g.id), bin: '— group —', type: 'Group', unit_cost: this.groupUnitCost(g.id) }));
+      const singles = s.items.map((i) => ({ id: i.id, kind: 'item', sku: i.sku, name: i.name, is_group: false, is_active: i.is_active, on_hand: i.qty_onhand, bin: i.bin_location, image: i.image || '', type: this.typeName(i.item_type_id), unit_cost: this.fifoUnitCost(i.id) }));
+      const grps = s.groups.map((g) => ({ id: g.id, kind: 'group', sku: g.sku, name: g.name, is_group: true, is_active: g.is_active !== false, on_hand: this.groupOnHand(g.id), bin: '— group —', image: g.image || '', type: 'Group', unit_cost: this.groupUnitCost(g.id) }));
       const asms = (s.assemblies || []).map((a) => ({ id: a.id, kind: 'assembly', sku: a.sku, name: a.name, is_group: false, is_assembly: true, is_active: a.is_active !== false, on_hand: this.availableUnits(a.id).length, bin: '— assembly —', type: 'Assembly', unit_cost: this.assemblyUnitCost(a.id) }));
       return [...singles, ...grps, ...asms];
     },
