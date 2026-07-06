@@ -1155,6 +1155,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     takePoDraft() { const d = (this.poDraft || []).slice(); this.poDraft = []; return d; },
 
     resetDemo() { this.$patch(seed()); try { sessionStorage.removeItem(SKEY); } catch (e) { /* ignore */ } },
+    // History: restore the whole workspace to an earlier saved version (then it re-saves as a new version — non-destructive).
+    restoreState(state, version) { if (!state || typeof state !== 'object') return; this.$patch(state); this.logActivity('⤺ Workspace restored to version ' + (version != null ? version : 'earlier') + ''); },
   },
 });
 

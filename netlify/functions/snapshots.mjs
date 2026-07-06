@@ -8,6 +8,12 @@ export const handler = async (event) => {
     await c.connect();
     const q = event.queryStringParameters || {};
     const slug = q.slug || SLUG;
+    if (q.version) {
+      const one = await c.query('select version,note,state,"createdAt" from "StateSnapshot" where workspace=$1 and version=$2 order by "createdAt" desc limit 1', [slug, Number(q.version)]);
+      await c.end();
+      if (!one.rowCount) return json(404, { error: 'snapshot not found' });
+      return json(200, one.rows[0]);
+    }
     const lim = Math.min(Number(q.limit) || 20, 100);
     const r = await c.query('select id,version,note,"createdAt" from "StateSnapshot" where workspace=$1 order by version desc limit $2', [slug, lim]);
     await c.end();

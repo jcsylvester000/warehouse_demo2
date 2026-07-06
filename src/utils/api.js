@@ -30,3 +30,11 @@ export async function apiPutState(state, version) {
     })
   );
 }
+
+// History / restore points — list saved versions, and fetch one version's full state.
+export async function apiGetSnapshots(limit = 25) {
+  return json(await fetch(BASE + '/api/snapshots?slug=' + encodeURIComponent(SLUG) + '&limit=' + limit));
+}
+export async function apiGetSnapshot(version) {
+  return json(await fetch(BASE + '/api/snapshots?slug=' + encodeURIComponent(SLUG) + '&version=' + version));
+}
