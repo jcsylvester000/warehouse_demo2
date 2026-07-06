@@ -128,6 +128,11 @@ function reset() {
         </div>
       </header>
 
+      <!-- Loud warning: shown only when the backend is expected but unreachable (data is NOT being saved). -->
+      <div v-if="backendStatus==='offline'" class="bg-amber-500 text-white text-[13px] font-semibold px-4 py-2 flex items-center justify-center gap-2 text-center">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M4.93 19h14.14a2 2 0 001.74-3l-7.07-12a2 2 0 00-3.48 0L3.19 16a2 2 0 001.74 3z" /></svg>
+        <span>Not connected to the database — changes are only kept in this browser and will be lost when the tab closes. Ask an admin to set the database connection.</span>
+      </div>
       <main class="py-6 px-4 sm:px-6 lg:px-8 max-w-[1400px] mx-auto">
         <RouterView v-slot="{ Component }">
           <transition name="fade" mode="out-in"><component :is="Component" /></transition>
