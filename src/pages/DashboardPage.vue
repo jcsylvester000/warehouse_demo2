@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useWarehouseStore, TODAY } from '@/stores/warehouse';
 import { useToast } from '@/composables/useToast';
 import { useDocViewer } from '@/composables/useDocViewer';
@@ -12,6 +13,8 @@ import Modal from '@/components/ui/BaseModal.vue';
 import ReqTag from '@/components/ui/ReqTag.vue';
 
 const store = useWarehouseStore();
+const router = useRouter();
+function onChip(c) { if (c.route) router.push(c.route); else if (c.tab) tab.value = c.tab; } // D1: dashboard tiles open the underlying view
 const toast = useToast();
 const docViewer = useDocViewer();
 function viewDoc(name, kind, facility, order) { docViewer.open({ name, kind, facility, order }); }
@@ -76,11 +79,11 @@ const cells = computed(() => {
 });
 
 const chips = computed(() => [
-  { label: 'Onboards (June)', value: store.facilities.filter((f) => f.onboard_date).length },
-  { label: 'Carts to ship', value: store.facilities.reduce((s, f) => s + (f.cart_shipment_date && f.status !== 'Received' ? f.carts_needed || 0 : 0), 0) },
-  { label: 'Awaiting receipt', value: store.facilities.filter((f) => f.cart_shipment_date && f.status !== 'Received').length },
-  { label: 'Open tickets', value: store.tickets.filter((t) => t.kind === 'assigned').length },
-  { label: 'New activity', value: store.newActivityCount, danger: store.newActivityCount > 0 },
+  { label: 'Onboards (June)', value: store.facilities.filter((f) => f.onboard_date).length, clickable: true, tab: 'facilities' },
+  { label: 'Carts to ship', value: store.facilities.reduce((s, f) => s + (f.cart_shipment_date && f.status !== 'Received' ? f.carts_needed || 0 : 0), 0), clickable: true, tab: 'facilities' },
+  { label: 'To receive', value: store.facilitiesAwaitingReceipt.length, clickable: true, route: '/assets', danger: store.facilitiesAwaitingReceipt.length > 0 }, // D3: real inbound count, click → receive
+  { label: 'Open tickets', value: store.tickets.filter((t) => t.kind === 'assigned').length, clickable: true, tab: 'tickets' },
+  { label: 'New activity', value: store.newActivityCount, danger: store.newActivityCount > 0, clickable: true, tab: 'calendar' },
 ]);
 
 const evClass = (t) => ({ onb: 'bg-indigo-50 text-indigo-700', ship: 'bg-amber-50 text-amber-700', reg: 'bg-slate-100 text-slate-500', rec: 'bg-emerald-50 text-emerald-700' }[t] || 'bg-slate-100');
@@ -111,7 +114,7 @@ const ticketTone = (p) => ({ High: 'rose', Medium: 'amber', Low: 'slate', Suppor
 
 <template>
   <div>
-    <Hero title="Warehouse Manager Dashboard" subtitle="Malky's purpose-built view — onboarding schedule, cart shipments, facilities, users and tickets." :chips="chips" />
+    <Hero title="Warehouse Manager Dashboard" subtitle="Malky's purpose-built view — onboarding schedule, cart shipments, facilities, users and tickets." :chips="chips" @chip="onChip" />
 
     <div class="grid gap-5 lg:grid-cols-3 items-start">
     <Card :padded="false" class="lg:col-span-2">

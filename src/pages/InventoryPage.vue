@@ -365,7 +365,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm flex items-center gap-2"><input v-model="groupForm.assembly_only" type="checkbox" /> This group can only be shipped as an assembly <ReqTag ver="V6" code="INV-2" text="V6 Inventory 2 — a master full-cart group can only ship as an assembly; its individual parts can still ship loose." /></label>
           <div>
             <span class="block text-slate-600 mb-1 text-sm">Add items to this group <ReqTag code="INV-1" text="V3 Inventory #1 — Group building is fast: adding successive items to a group has no lag (lightweight search picker)." /> <span class="text-xs text-slate-400">— search & click to drop in (single items or other groups)</span></span>
-            <SearchPicker :options="store.catalogLite" :exclude-ids="memberExclude" placeholder="Search all inventory…" @pick="onMemberPick" />
+            <SearchPicker multi :options="store.catalogLite" :exclude-ids="memberExclude" placeholder="Search all inventory…" @pick="onMemberPick" />
           </div>
           <div v-for="(m,idx) in groupForm.members" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
             <Badge :tone="m.kind==='group'?'emerald':'slate'">{{ m.kind }}</Badge>
@@ -389,7 +389,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
             <label class="text-sm block"><span class="block text-slate-600 mb-1">Cart type</span><select v-model="asmForm.assembly_type_id" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="t in store.assemblyTypes" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
             <div>
               <span class="block text-slate-600 mb-1 text-sm">Parts — groups &amp; singles <ReqTag ver="V4" code="AS-2" text="V4 Assemblies #2 — a cart assembly is built from group items and singles." /> <span class="text-xs text-slate-400">— search &amp; click to add</span></span>
-              <SearchPicker :options="store.catalogLite" :exclude-ids="asmPartExclude" placeholder="Search groups &amp; items…" @pick="onAsmPartPick" />
+              <SearchPicker multi :options="store.catalogLite" :exclude-ids="asmPartExclude" placeholder="Search groups &amp; items…" @pick="onAsmPartPick" />
               <p class="mt-1 text-[11px] text-violet-600">An assembly can combine <b>any number of groups and single items</b> — add as many as the cart needs.</p>
             </div>
             <div v-for="(c,idx) in asmForm.composition" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
@@ -583,7 +583,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart code</span><input v-model="asm.code" placeholder="auto if blank" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart type</span><select v-model="asm.cart_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="t in store.assemblyTypes" :key="t.id" :value="t.name">{{ t.name }}</option></select></label>
         </div>
-        <div><span class="block text-slate-600 mb-1 text-sm">Components <span class="text-xs text-slate-400">— search & click to add</span></span><SearchPicker :options="singleOptions" :exclude-ids="asmExclude" placeholder="Search items…" @pick="onCompPick" /></div>
+        <div><span class="block text-slate-600 mb-1 text-sm">Components <span class="text-xs text-slate-400">— search & click to add</span></span><SearchPicker multi :options="singleOptions" :exclude-ids="asmExclude" placeholder="Search items…" @pick="onCompPick" /></div>
         <table class="w-full text-sm"><tbody class="divide-y divide-slate-100">
           <tr v-for="(c,idx) in asm.components" :key="c.vendor_item_id"><td class="px-2 py-2 text-slate-700">{{ c.name }}</td><td class="px-2 py-2 text-right"><input v-model="c.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" /></td><td class="px-2 py-2 text-right tabular-nums text-slate-500">{{ money((Number(c.qty)||0)*store.fifoUnitCost(c.vendor_item_id)) }}</td><td class="px-2 py-2 text-right"><button class="text-rose-500" @click="asm.components.splice(idx,1)">&times;</button></td></tr>
           <tr v-if="!asm.components.length"><td colspan="4" class="px-2 py-5 text-center text-slate-400">No components yet.</td></tr>

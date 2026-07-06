@@ -5,6 +5,7 @@ const props = defineProps({
   options: { type: Array, default: () => [] }, // [{ id, name, sku, sub, on_hand, is_group }]
   placeholder: { type: String, default: 'Search…' },
   excludeIds: { type: Array, default: () => [] },
+  multi: { type: Boolean, default: false }, // I5/I6: keep open after a pick so several can be added in a row
 });
 const emit = defineEmits(['pick']);
 
@@ -20,7 +21,7 @@ const filtered = computed(() => {
     })
     .slice(0, 40);
 });
-function pick(o) { emit('pick', o.id); q.value = ''; open.value = false; }
+function pick(o) { emit('pick', o.id); q.value = ''; if (!props.multi) open.value = false; }
 function blur() { setTimeout(() => { open.value = false; }, 150); }
 </script>
 

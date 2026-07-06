@@ -269,7 +269,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
         </div>
 
         <div class="rounded-xl border border-slate-200 overflow-hidden">
-          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click to drop in (items and groups in one list) <ReqTag ver="V4" code="PO-1" text="V4 PO #1 — A group on a PO is ONE line; set the group qty once and every item inside scales (same as the Sales Order)." /></span><div class="mt-2"><SearchPicker :options="store.catalogLite" :exclude-ids="pickExclude" placeholder="Search item number or name…" @pick="onPick" /></div></div>
+          <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items — search & click to drop in (items and groups in one list) <ReqTag ver="V4" code="PO-1" text="V4 PO #1 — A group on a PO is ONE line; set the group qty once and every item inside scales (same as the Sales Order)." /></span><div class="mt-2"><SearchPicker multi :options="store.catalogLite" :exclude-ids="pickExclude" placeholder="Search item number or name…" @pick="onPick" /></div></div>
           <table class="w-full text-sm">
             <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left px-4 py-2">Item / Group</th><th class="text-right px-4 py-2">Qty</th><th class="text-right px-4 py-2">Unit</th><th class="text-right px-4 py-2">Line</th><th></th></tr></thead>
             <tbody class="divide-y divide-slate-100">
