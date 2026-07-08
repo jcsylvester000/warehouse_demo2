@@ -94,6 +94,17 @@ function saveType() {
 function removeType(c) { const r = store.removeAssetType(c.id); if (r && r.error) return toast.error(r.error); toast.success(c.label + ' removed.'); if (tab.value === c.id) tab.value = 'cart'; }
 // ---------- Employee confirms receipt of an assigned asset ----------
 function confirmReceipt(a) { const r = store.confirmAssetReceipt(a.id, a.holder); if (r && r.error) return toast.error(r.error); toast.success(a.code + ' receipt confirmed.'); }
+// ---------- Ship a warehouse asset out to an employee (reuses the Phase-1 shipOutAsset engine) ----------
+const showShipOut = ref(false);
+const shipForm = reactive({ id: null, code: '', holder: '', emp_state: '' });
+function openShipOut(a) { Object.assign(shipForm, { id: a.id, code: a.code, holder: '', emp_state: '' }); showShipOut.value = true; }
+function doShipOut() {
+  if (!shipForm.holder.trim()) return toast.error('Enter the employee this asset ships to.');
+  const r = store.shipOutAsset(shipForm.id, { holder_type: 'employee', holder: shipForm.holder.trim(), emp_state: shipForm.emp_state.trim() });
+  if (r && r.error) return toast.error(r.error);
+  toast.success(shipForm.code + ' shipped to ' + shipForm.holder.trim() + ' — awaiting their receipt.');
+  showShipOut.value = false;
+}
 // ---------- Bulk import existing assets (paste rows — avoids manual entry) ----------
 const showImport = ref(false);
 const importType = ref('');
@@ -241,7 +252,7 @@ const chips = computed(() => [
                 </select>
               </td>
               <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
-              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
+              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button v-if="tab!=='cart' && !a.holder_type && (a.status==='In Warehouse' || a.status==='Available')" class="text-xs font-semibold text-blue-700 hover:underline mr-2" @click="openShipOut(a)">Ship out</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
             <tr v-if="!total"><td :colspan="4 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
           </tbody>
@@ -362,6 +373,16 @@ const chips = computed(() => [
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>
       </div>
       <template #footer><Btn variant="secondary" @click="showRecv=false">Cancel</Btn><Btn variant="success" @click="saveRecv">Confirm received</Btn></template>
+    </Modal>
+
+    <!-- Ship a warehouse asset out to an employee -->
+    <Modal v-if="showShipOut" title="Ship asset to employee" :sub="shipForm.code + ' → assign to an employee (status becomes Assigned; they confirm receipt).'" @close="showShipOut=false">
+      <div class="space-y-3">
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Employee <span class="text-rose-500">*</span></span><input v-model="shipForm.holder" placeholder="Employee name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">State</span><input v-model="shipForm.emp_state" placeholder="e.g. NJ" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <p class="text-[11px] text-slate-500">Carts ship to facilities on a Sales Order; individual equipment assets attach to the employee here. The asset then shows under its holder and the employee can confirm receipt.</p>
+      </div>
+      <template #footer><Btn variant="secondary" @click="showShipOut=false">Cancel</Btn><Btn variant="success" @click="doShipOut">Ship to employee</Btn></template>
     </Modal>
 
     <!-- Unified Build Asset: choose what to build -->
