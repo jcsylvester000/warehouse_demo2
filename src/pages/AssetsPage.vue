@@ -72,7 +72,7 @@ function saveEdit() {
   if (!String(form.code).trim()) return toast.error('A Code / ID is required.');
   const patch = { code: String(form.code).trim(), holder_type: form.holder_type, holder: form.holder_type ? String(form.holder).trim() : '', emp_state: form.holder_type === 'employee' ? String(form.emp_state).trim() : '', status: form.status, ...form.fields };
   if (editingId.value) { store.updateAsset(editingId.value, patch); toast.success(patch.code + ' updated.'); }
-  else { store.addAsset(tab.value, patch); toast.success(patch.code + ' added.'); }
+  else { const r = store.addAsset(tab.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' added.'); }
   showEdit.value = false;
 }
 

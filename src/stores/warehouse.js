@@ -13,7 +13,7 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 // Asset-class metadata: the 8 real classes, their assignment target, and the columns to show.
 const ASSET_CLASSES = [
-  { id: 'cart', label: 'Carts', prefix: '', assign: 'facility', cols: [['cart_type', 'Cart Type'], ['bp_machine', 'BP Machine'], ['key', 'Key'], ['tablet_type', 'Tablet Type'], ['tablet_number', 'Tablet #'], ['clini_omni', 'Clini/Omni'], ['basket_type', 'Basket'], ['lte', 'LTE'], ['regional', 'Regional']] },
+  { id: 'cart', label: 'Carts', prefix: '', assign: 'facility', cols: [['cart_type', 'Cart Type'], ['bp_machine', 'BP Machine'], ['key', 'Key'], ['tablet_type', 'Tablet Type'], ['tablet_number', 'Tablet #'], ['clini_omni', 'Clini/Omni', 'shipout'], ['basket_type', 'Basket'], ['lte', 'LTE', 'shipout'], ['regional', 'Regional', 'shipout']] },
   { id: 'laptop', label: 'Laptops', prefix: 'LT-', assign: 'employee', cols: [['brand', 'Brand'], ['model', 'Model'], ['serial', 'Serial'], ['ram', 'RAM'], ['processor', 'Processor'], ['clicrite', 'Clicrite ID'], ['price', 'Price'], ['trivia', 'Trivia']] },
   { id: 'gameshow', label: 'Game Shows', prefix: 'GS-', assign: 'employee', cols: [['tracking', 'Tracking'], ['return_tracking', 'Return Tracking'], ['personal_email', 'Personal Email']] },
   { id: 'tablet', label: 'Tablets', prefix: 'T-', assign: 'employee', cols: [['model', 'Model'], ['serial', 'Serial'], ['imei', 'IMEI'], ['lte', 'LTE'], ['sim', 'SIM'], ['phone', 'Phone #'], ['price', 'Price']] },
@@ -353,7 +353,7 @@ function seed() {
   // ---- Real Asset Registry (seeded from the Cart List inventory) ----
   // Adheres to the amendment: a Cart is a cart-assembly (assigned to a Facility + Regional);
   // every IT class is a single-item assembly (assigned to an Employee). Holder is Employee or Facility only.
-  db.assetClasses = ASSET_CLASSES;
+  db.assetClasses = ASSET_CLASSES.map((c) => ({ ...c, cols: (c.cols || []).map((col) => [...col]) }));
   let _an = 0;
   const mkA = (klass, rec) => ({ id: 'as-' + (++_an), klass, ...rec });
   db.assets = [];
@@ -427,6 +427,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     assetClassCount(s) { return (klass) => klass === 'cart' ? (s.carts || []).length : (s.assets || []).filter((a) => a.klass === klass).length; },
     assetTotal(s) { return (s.assets || []).filter((a) => a.klass !== 'cart').length + (s.carts || []).length; },
     assetClassMeta(s) { return (klass) => (s.assetClasses || []).find((c) => c.id === klass) || { id: klass, label: klass, cols: [] }; },
+    assetTypeBuildCols() { return (klass) => ((this.assetClassMeta(klass).cols) || []).filter((c) => (c[2] || 'build') !== 'shipout'); },
+    assetTypeShipoutCols() { return (klass) => ((this.assetClassMeta(klass).cols) || []).filter((c) => (c[2] || 'build') === 'shipout'); },
+    assetCodeExists(s) { return (code, exceptId) => { const c = String(code || '').trim().toLowerCase(); if (!c) return false; const inA = (s.assets || []).some((a) => a.id !== exceptId && String(a.code || '').trim().toLowerCase() === c); const inC = (s.carts || []).some((x) => String(x.code || '').trim().toLowerCase() === c); return inA || inC; }; },
     assetStatusOptions() { return ['In Warehouse', 'Deployed', 'Assigned', 'Out of Service', 'Incomplete', 'Retired', 'Return Pending', 'Returned', 'Active', 'Deactivated']; },
     assetCountByStatus(s) { return (klass, status) => {
       const fromAssets = (s.assets || []).filter((a) => a.klass !== 'cart' && (!klass || a.klass === klass) && a.status === status).length;
@@ -607,17 +610,49 @@ export const useWarehouseStore = defineStore('warehouse', {
       const a = (this.assets || []).find((x) => x.id === id); if (a) { a.status = status; this.logActivity('Asset ' + a.code + ' status -> ' + status); }
     },
     reassignAsset(id, holder_type, holder) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return; a.holder_type = holder_type || ''; a.holder = holder || ''; a.status = holder ? (holder_type === 'facility' ? 'Deployed' : 'Assigned') : 'In Warehouse'; this.logActivity('Asset ' + a.code + ' reassigned to ' + (holder || 'warehouse')); },
-    returnAsset(id, tracking) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return; a.status = 'Returned'; if (tracking) a.return_tracking = tracking; this.logActivity('Asset ' + a.code + ' returned by ' + (a.holder || '—')); },
+    returnAsset(id, tracking) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return; a.status = 'Returned'; a.condition = 'Used'; if (tracking) a.return_tracking = tracking; this.logActivity('Asset ' + a.code + ' returned by ' + (a.holder || '—') + ' — condition set to Used'); },
     // terminated employee -> flag every asset they hold for recovery (then returnAsset finalises it)
     recoverTerminatedAssets(name) { const list = (this.assets || []).filter((a) => a.holder_type === 'employee' && (a.holder || '') === name && a.status !== 'Returned'); list.forEach((a) => { a.status = 'Return Pending'; }); this.logActivity('Recovery started for ' + name + ' (' + list.length + ' asset' + (list.length === 1 ? '' : 's') + ')'); return list.length; },
     // add / edit a tracked asset unit (Warehouse Manager). Holder is employee or facility only.
-    addAsset(klass, rec) { this.counters.asn = (this.counters.asn || 0) + 1; const a = { id: 'as-' + this.counters.asn, klass, holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', ...rec }; this.assets.unshift(a); this.logActivity('Asset added: ' + (a.code || a.id) + ' (' + klass + ')'); return a; },
+    addAsset(klass, rec) { const code = String((rec && rec.code) || '').trim(); if (code && this.assetCodeExists(code)) return { error: 'Asset ID "' + code + '" already exists — IDs must be unique.' }; this.counters.asn = (this.counters.asn || 0) + 1; const a = { id: 'as-' + this.counters.asn, klass, holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', condition: 'New', ...rec }; this.assets.unshift(a); this.logActivity('Asset added: ' + (a.code || a.id) + ' (' + klass + ')'); return a; },
     updateAsset(id, patch) {
       const c = (this.carts || []).find((x) => x.id === id);
       if (c) { const map = { cart_type: 'cart_type', bp_machine: 'bp_device', key: 'key_type', tablet_number: 'tablet_number', code: 'code' }; Object.keys(patch || {}).forEach((k) => { if (map[k]) c[map[k]] = patch[k]; }); this.logActivity('Cart updated: ' + c.code); return c; }
-      const a = (this.assets || []).find((x) => x.id === id); if (a) { Object.assign(a, patch); this.logActivity('Asset updated: ' + (a.code || id)); } return a;
+      const a = (this.assets || []).find((x) => x.id === id); if (a) { if (patch && patch.code && this.assetCodeExists(patch.code, id)) return { error: 'Asset ID "' + String(patch.code).trim() + '" already exists — IDs must be unique.' }; Object.assign(a, patch); this.logActivity('Asset updated: ' + (a.code || id)); } return a;
     },
     nextAssetCode(klass) { const meta = (this.assetClasses || []).find((c) => c.id === klass) || {}; const pre = meta.prefix || ''; let max = 0; (this.assets || []).filter((a) => a.klass === klass).forEach((a) => { const m = String(a.code || '').match(/(\d+)\s*$/); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } }); return (klass === 'cart' ? '' : pre) + String(max + 1).padStart(4, '0'); },
+    // --- Manage Asset Types (user-defined): add / edit / remove a type, its ID prefix, and its columns. ---
+    _assetTypeId(label) { const base = String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'type'; let id = base, n = 2; while ((this.assetClasses || []).some((c) => c.id === id)) id = base + (n++); return id; },
+    addAssetType({ label, prefix, assign, cols }) {
+      const name = String(label || '').trim(); if (!name) return { error: 'A type name is required.' };
+      if ((this.assetClasses || []).some((c) => (c.label || '').trim().toLowerCase() === name.toLowerCase())) return { error: 'An asset type named "' + name + '" already exists.' };
+      const type = { id: this._assetTypeId(name), label: name, prefix: String(prefix || '').trim(), assign: assign === 'facility' ? 'facility' : 'employee', cols: Array.isArray(cols) ? cols : [], user: true };
+      this.assetClasses.push(type); this.logActivity('Asset type added: ' + name); return { type };
+    },
+    updateAssetType(id, patch) {
+      const t = (this.assetClasses || []).find((c) => c.id === id); if (!t) return { error: 'Type not found.' };
+      if (patch && patch.label != null) { const nm = String(patch.label).trim(); if (nm && (this.assetClasses || []).some((c) => c.id !== id && (c.label || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'Another asset type is already named "' + nm + '".' }; t.label = nm || t.label; }
+      if (patch && patch.prefix != null) t.prefix = String(patch.prefix).trim();
+      if (patch && patch.assign != null) t.assign = patch.assign === 'facility' ? 'facility' : 'employee';
+      if (patch && Array.isArray(patch.cols)) t.cols = patch.cols;
+      this.logActivity('Asset type updated: ' + t.label); return { type: t };
+    },
+    removeAssetType(id) {
+      if (id === 'cart') return { error: 'The Carts type is built in and cannot be removed.' };
+      if ((this.assets || []).some((a) => a.klass === id)) return { error: 'This type still has assets — reassign or remove them first.' };
+      const i = (this.assetClasses || []).findIndex((c) => c.id === id); if (i < 0) return { error: 'Type not found.' };
+      const removed = this.assetClasses.splice(i, 1)[0]; this.logActivity('Asset type removed: ' + (removed ? removed.label : id)); return { ok: true };
+    },
+    // Ship an asset out to its holder: capture ship-out fields, attach holder, move warehouse -> deployed/assigned.
+    shipOutAsset(id, opts) {
+      const o = opts || {}; const a = (this.assets || []).find((x) => x.id === id); if (!a) return { error: 'Asset not found.' };
+      a.holder_type = o.holder_type || a.holder_type || ''; a.holder = o.holder || a.holder || ''; if (o.emp_state != null) a.emp_state = o.emp_state;
+      if (o.fields) Object.assign(a, o.fields);
+      a.status = a.holder_type === 'facility' ? 'Deployed' : (a.holder_type === 'employee' ? 'Assigned' : 'In Warehouse');
+      a.received = false; this.logActivity('Asset ' + a.code + ' shipped to ' + (a.holder || '—') + ' -> ' + a.status); return { asset: a };
+    },
+    // The employee (or facility) confirms the asset arrived.
+    confirmAssetReceipt(id, by) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return { error: 'Asset not found.' }; a.received = true; a.received_by = by || a.holder || ''; a.received_on = TODAY; this.logActivity('Asset ' + a.code + ' receipt confirmed by ' + (a.received_by || '—')); return { asset: a }; },
     _sync(item) { const q = item.lots.reduce((s, l) => s + l.qty, 0); item.qty_onhand = q; item.qty_available = q; },
     nextSku() { this.counters.sku += 1; return String(this.counters.sku); },
 
