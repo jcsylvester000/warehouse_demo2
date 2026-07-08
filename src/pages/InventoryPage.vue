@@ -73,6 +73,7 @@ function onMemberPick(id) {
   groupForm.members.push({ kind, ref_id: id, qty: 1 });
 }
 const memberExclude = computed(() => [groupForm.id, ...groupForm.members.map((m) => m.ref_id)].filter(Boolean));
+const groupMembersCollapsed = ref(false); // item 11: collapse the group's member list (UX)
 function onImage(e, form) { const f = e.target.files && e.target.files[0]; if (!f) return; if (f.size > 200 * 1024) { toast.error('Image too large — please use one under 200 KB.'); return; } const r = new FileReader(); r.onload = () => { form.image = r.result; }; r.readAsDataURL(f); }
 function saveAdd() {
   if (addKind.value === 'item') {
@@ -414,12 +415,17 @@ const warehouseAssets = computed(() => {
           <label class="text-sm flex items-center gap-2"><input v-model="groupForm.assembly_only" type="checkbox" /> This group can only be shipped as an asset <ReqTag ver="V6" code="INV-2" text="V6 Inventory 2 — a master full-cart group can only ship as an assembly; its individual parts can still ship loose." /></label>
           <label class="text-sm block"><span class="block text-slate-600 mb-1">Image <span class="text-slate-400 font-normal">(optional · max 200 KB)</span></span><div class="flex items-center gap-3"><label class="inline-flex items-center gap-2 px-3 h-9 rounded-lg bg-indigo-600 text-white text-xs font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>{{ groupForm.image ? 'Change image' : 'Upload image' }}<input type="file" accept="image/*" class="hidden" @change="onImage($event, groupForm)" /></label><img v-if="groupForm.image" :src="groupForm.image" class="w-14 h-14 object-cover rounded ring-1 ring-slate-200 cursor-zoom-in" title="Click to enlarge" @click="lb.open(groupForm.image, groupForm.name)" /><button v-if="groupForm.image" type="button" class="text-xs text-rose-500 hover:underline" @click="groupForm.image=''">Remove</button></div></label>
           <div v-if="groupForm.members.length" class="space-y-2">
-            <span class="block text-slate-600 text-sm font-medium">Members in this group</span>
-            <div v-for="(m,idx) in groupForm.members" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
-              <Badge :tone="m.kind==='group'?'emerald':'slate'">{{ m.kind }}</Badge>
-              <span class="flex-1">{{ m.kind==='group' ? (store.groupById(m.ref_id)||{}).name : (store.itemById(m.ref_id)||{}).name }}</span>
-              <input v-model="m.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
-              <button class="text-rose-500 text-lg" @click="groupForm.members.splice(idx,1)">&times;</button>
+            <button type="button" class="flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-slate-800" @click="groupMembersCollapsed = !groupMembersCollapsed">
+              <svg class="w-3.5 h-3.5 transition-transform" :class="groupMembersCollapsed ? '-rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              Members in this group <span class="text-slate-400 font-normal">({{ groupForm.members.length }})</span>
+            </button>
+            <div v-show="!groupMembersCollapsed" class="space-y-2">
+              <div v-for="(m,idx) in groupForm.members" :key="idx" class="flex items-center gap-2 text-sm rounded-lg ring-1 ring-slate-100 px-3 py-2">
+                <Badge :tone="m.kind==='group'?'emerald':'slate'">{{ m.kind }}</Badge>
+                <span class="flex-1">{{ m.kind==='group' ? (store.groupById(m.ref_id)||{}).name : (store.itemById(m.ref_id)||{}).name }}</span>
+                <input v-model="m.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" />
+                <button class="text-rose-500 text-lg" @click="groupForm.members.splice(idx,1)">&times;</button>
+              </div>
             </div>
           </div>
           <p v-else class="text-xs text-slate-400">No members yet — add single items or other groups below.</p>
