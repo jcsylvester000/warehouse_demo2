@@ -14,7 +14,7 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // Asset-class metadata: the 8 real classes, their assignment target, and the columns to show.
 const ASSET_CLASSES = [
   { id: 'cart', label: 'Carts', prefix: '', assign: 'facility', cols: [['cart_type', 'Cart Type'], ['bp_machine', 'BP Machine'], ['key', 'Key'], ['tablet_type', 'Tablet Type'], ['tablet_number', 'Tablet #'], ['clini_omni', 'Clini/Omni', 'shipout'], ['basket_type', 'Basket'], ['lte', 'LTE', 'shipout'], ['regional', 'Regional', 'shipout']] },
-  { id: 'laptop', label: 'Laptops', prefix: 'LT-', assign: 'employee', cols: [['brand', 'Brand'], ['model', 'Model'], ['serial', 'Serial'], ['ram', 'RAM'], ['processor', 'Processor'], ['clicrite', 'Clicrite ID'], ['price', 'Price'], ['trivia', 'Trivia']] },
+  { id: 'laptop', label: 'Laptops', prefix: 'LT-', assign: 'employee', cols: [['brand', 'Brand'], ['model', 'Model'], ['serial', 'Serial'], ['ram', 'RAM'], ['processor', 'Processor'], ['clicrite', 'Clicrite ID'], ['price', 'Price']] },
   { id: 'gameshow', label: 'Game Shows', prefix: 'GS-', assign: 'employee', cols: [['tracking', 'Tracking'], ['return_tracking', 'Return Tracking'], ['personal_email', 'Personal Email']] },
   { id: 'tablet', label: 'Tablets', prefix: 'T-', assign: 'employee', cols: [['model', 'Model'], ['serial', 'Serial'], ['imei', 'IMEI'], ['lte', 'LTE'], ['sim', 'SIM'], ['phone', 'Phone #'], ['price', 'Price']] },
   { id: 'monitor', label: 'Monitors', prefix: 'CM-', assign: 'employee', cols: [['model', 'Model'], ['serial', 'Serial'], ['size', 'Size'], ['price', 'Price']] },
@@ -624,10 +624,10 @@ export const useWarehouseStore = defineStore('warehouse', {
     nextAssetCode(klass) { const meta = (this.assetClasses || []).find((c) => c.id === klass) || {}; const pre = meta.prefix || ''; let max = 0; (this.assets || []).filter((a) => a.klass === klass).forEach((a) => { const m = String(a.code || '').match(/(\d+)\s*$/); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } }); return (klass === 'cart' ? '' : pre) + String(max + 1).padStart(4, '0'); },
     // --- Manage Asset Types (user-defined): add / edit / remove a type, its ID prefix, and its columns. ---
     _assetTypeId(label) { const base = String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'type'; let id = base, n = 2; while ((this.assetClasses || []).some((c) => c.id === id)) id = base + (n++); return id; },
-    addAssetType({ label, prefix, assign, cols }) {
+    addAssetType({ label, prefix, assign, cols, source_kind, source_id }) {
       const name = String(label || '').trim(); if (!name) return { error: 'A type name is required.' };
       if ((this.assetClasses || []).some((c) => (c.label || '').trim().toLowerCase() === name.toLowerCase())) return { error: 'An asset type named "' + name + '" already exists.' };
-      const type = { id: this._assetTypeId(name), label: name, prefix: String(prefix || '').trim(), assign: assign === 'facility' ? 'facility' : 'employee', cols: Array.isArray(cols) ? cols : [], user: true };
+      const type = { id: this._assetTypeId(name), label: name, prefix: String(prefix || '').trim(), assign: assign === 'facility' ? 'facility' : 'employee', cols: Array.isArray(cols) ? cols : [], source_kind: source_kind || 'none', source_id: source_id || '', user: true };
       this.assetClasses.push(type); this.logActivity('Asset type added: ' + name); return { type };
     },
     updateAssetType(id, patch) {
@@ -636,6 +636,8 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (patch && patch.prefix != null) t.prefix = String(patch.prefix).trim();
       if (patch && patch.assign != null) t.assign = patch.assign === 'facility' ? 'facility' : 'employee';
       if (patch && Array.isArray(patch.cols)) t.cols = patch.cols;
+      if (patch && patch.source_kind != null) t.source_kind = patch.source_kind;
+      if (patch && patch.source_id != null) t.source_id = patch.source_id;
       this.logActivity('Asset type updated: ' + t.label); return { type: t };
     },
     removeAssetType(id) {
@@ -654,6 +656,28 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     // The employee (or facility) confirms the asset arrived.
     confirmAssetReceipt(id, by) { const a = (this.assets || []).find((x) => x.id === id); if (!a) return { error: 'Asset not found.' }; a.received = true; a.received_by = by || a.holder || ''; a.received_on = TODAY; this.logActivity('Asset ' + a.code + ' receipt confirmed by ' + (a.received_by || '—')); return { asset: a }; },
+    // Build an asset FROM inventory: if its type is sourced (a single item or a group), consume that stock, then create the tracked asset.
+    buildAssetOf(klass, rec) {
+      const code = String((rec && rec.code) || '').trim();
+      if (code && this.assetCodeExists(code)) return { error: 'Asset ID "' + code + '" already exists — IDs must be unique.' };
+      const meta = (this.assetClasses || []).find((c) => c.id === klass) || {};
+      if (meta.source_kind === 'item' && meta.source_id) {
+        const it = this.itemById(meta.source_id);
+        if (!it || (it.qty_onhand || 0) < 1) return { error: 'Not enough ' + (it ? it.name : 'source stock') + ' in inventory to build this asset.' };
+        this.issueFIFO(meta.source_id, 1); this.logStock(meta.source_id, 'out', 1, 'Asset build', code || '', null);
+      } else if (meta.source_kind === 'group' && meta.source_id) {
+        const exp = this.expandGroup(meta.source_id, 1);
+        for (const k of Object.keys(exp)) { const it = this.itemById(k); if (!it || (it.qty_onhand || 0) < exp[k]) return { error: 'Not enough ' + (it ? it.name : k) + ' in inventory to build this grouped asset.' }; }
+        Object.keys(exp).forEach((k) => { this.issueFIFO(k, exp[k]); this.logStock(k, 'out', exp[k], 'Asset build', code || '', null); });
+      }
+      return this.addAsset(klass, rec);
+    },
+    // Item 5 — a returned asset comes back into the warehouse pool (condition stays as-is, e.g. Used).
+    markAssetInWarehouse(id) {
+      const a = (this.assets || []).find((x) => x.id === id); if (!a) return { error: 'Asset not found.' };
+      a.status = 'In Warehouse'; a.holder_type = ''; a.holder = ''; a.emp_state = ''; a.received = false;
+      this.logActivity('Asset ' + a.code + ' returned to the warehouse (condition ' + (a.condition || 'Used') + ')'); return { asset: a };
+    },
     _sync(item) { const q = item.lots.reduce((s, l) => s + l.qty, 0); item.qty_onhand = q; item.qty_available = q; },
     nextSku() { this.counters.sku += 1; return String(this.counters.sku); },
 

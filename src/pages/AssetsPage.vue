@@ -64,29 +64,31 @@ const cell = (a, key) => { const v = a[key]; if (v === true) return 'Yes'; if (v
 // ---------- add / edit an asset ----------
 const showEdit = ref(false);
 const editingId = ref(null);
-const form = reactive({ code: '', holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', fields: {} });
+const form = reactive({ code: '', holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', condition: 'New', fields: {} });
 function blankFields() { const f = {}; (meta.value.cols || []).forEach((c) => { f[c[0]] = ''; }); return f; }
-function openAdd() { editingId.value = null; Object.assign(form, { code: store.nextAssetCode(tab.value), holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', fields: blankFields() }); showEdit.value = true; }
-function openEdit(a) { editingId.value = a.id; const f = {}; (meta.value.cols || []).forEach((c) => { f[c[0]] = a[c[0]] != null ? a[c[0]] : ''; }); Object.assign(form, { code: a.code || '', holder_type: a.holder_type || '', holder: a.holder || '', emp_state: a.emp_state || '', status: a.status || 'In Warehouse', fields: f }); showEdit.value = true; }
+function openAdd() { editingId.value = null; Object.assign(form, { code: store.nextAssetCode(tab.value), holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', condition: 'New', fields: blankFields() }); showEdit.value = true; }
+function openEdit(a) { editingId.value = a.id; const f = {}; (meta.value.cols || []).forEach((c) => { f[c[0]] = a[c[0]] != null ? a[c[0]] : ''; }); Object.assign(form, { code: a.code || '', holder_type: a.holder_type || '', holder: a.holder || '', emp_state: a.emp_state || '', status: a.status || 'In Warehouse', condition: a.condition || 'New', fields: f }); showEdit.value = true; }
 function saveEdit() {
   if (!String(form.code).trim()) return toast.error('A Code / ID is required.');
-  const patch = { code: String(form.code).trim(), holder_type: form.holder_type, holder: form.holder_type ? String(form.holder).trim() : '', emp_state: form.holder_type === 'employee' ? String(form.emp_state).trim() : '', status: form.status, ...form.fields };
+  const patch = { code: String(form.code).trim(), holder_type: form.holder_type, holder: form.holder_type ? String(form.holder).trim() : '', emp_state: form.holder_type === 'employee' ? String(form.emp_state).trim() : '', status: form.status, condition: form.condition, ...form.fields };
+  if (!editingId.value) { const missing = store.assetTypeBuildCols(tab.value).filter((c) => c[0] !== 'price' && !String((form.fields[c[0]] || '')).trim()); if (missing.length) return toast.error('Please fill required fields: ' + missing.map((c) => c[1]).join(', ') + '.'); }
   if (editingId.value) { const r = store.updateAsset(editingId.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' updated.'); }
-  else { const r = store.addAsset(tab.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' added.'); }
+  else { const r = store.buildAssetOf(tab.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' built.'); }
   showEdit.value = false;
 }
 
 // ---------- Manage Asset Types: define a type, its ID prefix, and its columns (build vs ship-out) ----------
 const showTypes = ref(false);
-const typeForm = reactive({ id: null, label: '', prefix: '', assign: 'employee', cols: [] });
-function resetTypeForm() { Object.assign(typeForm, { id: null, label: '', prefix: '', assign: 'employee', cols: [] }); }
+const typeForm = reactive({ id: null, label: '', prefix: '', assign: 'employee', cols: [], source: 'none' });
+function resetTypeForm() { Object.assign(typeForm, { id: null, label: '', prefix: '', assign: 'employee', cols: [], source: 'none' }); }
 function openTypes() { resetTypeForm(); showTypes.value = true; }
-function editType(c) { Object.assign(typeForm, { id: c.id, label: c.label, prefix: c.prefix || '', assign: c.assign || 'employee', cols: (c.cols || []).map((col) => ({ key: col[0], label: col[1], stage: col[2] || 'build' })) }); }
+function editType(c) { Object.assign(typeForm, { id: c.id, label: c.label, prefix: c.prefix || '', assign: c.assign || 'employee', cols: (c.cols || []).map((col) => ({ key: col[0], label: col[1], stage: col[2] || 'build' })), source: (c.source_kind && c.source_id) ? (c.source_kind + ':' + c.source_id) : 'none' }); }
 function addCol() { typeForm.cols.push({ key: '', label: '', stage: 'build' }); }
 function rmCol(i) { typeForm.cols.splice(i, 1); }
 function saveType() {
   const cols = typeForm.cols.filter((c) => String(c.label).trim()).map((c) => { const key = (c.key || c.label).toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); return c.stage === 'shipout' ? [key, c.label.trim(), 'shipout'] : [key, c.label.trim()]; });
-  const payload = { label: typeForm.label, prefix: typeForm.prefix, assign: typeForm.assign, cols };
+  const sp = String(typeForm.source || 'none').split(':');
+  const payload = { label: typeForm.label, prefix: typeForm.prefix, assign: typeForm.assign, cols, source_kind: sp[0] === 'none' ? 'none' : sp[0], source_id: sp[0] === 'none' ? '' : sp.slice(1).join(':') };
   const r = typeForm.id ? store.updateAssetType(typeForm.id, payload) : store.addAssetType(payload);
   if (r && r.error) return toast.error(r.error);
   toast.success('Asset type ' + (typeForm.id ? 'updated' : 'added') + '.'); resetTypeForm();
@@ -108,6 +110,10 @@ function doShipOut() {
 // ---------- Bulk import existing assets (paste rows — avoids manual entry) ----------
 const showImport = ref(false);
 const importType = ref('');
+const importPlace = ref('warehouse');
+const sourceOptions = computed(() => [ ...(store.items || []).map((i) => ({ v: 'item:' + i.id, label: i.name + ' (item)' })), ...(store.groups || []).map((g) => ({ v: 'group:' + g.id, label: g.name + ' (group)' })) ]);
+function returnToWh(a) { const r = store.markAssetInWarehouse(a.id); if (r && r.error) return toast.error(r.error); toast.success(a.code + ' is back in the warehouse.'); }
+function onCondition(a, ev) { store.updateAsset(a.id, { condition: ev.target.value }); toast.success(a.code + ' → ' + ev.target.value); }
 const importText = ref('');
 function openImport() { importType.value = (tab.value && tab.value !== 'cart') ? tab.value : ((store.assetClassList.find((c) => c.id !== 'cart') || {}).id || ''); importText.value = ''; showImport.value = true; }
 function runImport() {
@@ -119,6 +125,7 @@ function runImport() {
     const parts = line.split(/[\t,]/).map((x) => x.trim());
     const code = parts[0]; if (!code) { skipped++; return; }
     const rec = { code }; cols.forEach((k, i) => { if (parts[i + 1] !== undefined && parts[i + 1] !== '') rec[k] = parts[i + 1]; });
+    if (importPlace.value !== 'warehouse') { const holder = parts[cols.length + 1]; if (holder) { rec.holder_type = importPlace.value; rec.holder = holder; rec.status = importPlace.value === 'facility' ? 'Deployed' : 'Assigned'; } }
     const r = store.addAsset(klass, rec);
     if (r && r.error) skipped++; else added++;
   });
@@ -234,6 +241,7 @@ const chips = computed(() => [
               <th class="text-left px-3 py-2">{{ tab==='cart' ? 'Cart #' : 'ID' }}</th>
               <th class="text-left px-3 py-2">Holder</th>
               <th class="text-left px-3 py-2">Status</th>
+              <th class="text-left px-3 py-2">Condition</th>
               <th v-for="c in meta.cols" :key="c[0]" class="text-left px-3 py-2">{{ c[1] }}</th>
               <th class="px-3 py-2"></th>
             </tr>
@@ -251,10 +259,11 @@ const chips = computed(() => [
                   <option v-for="o in store.assetStatusOptions" :key="o">{{ o }}</option>
                 </select>
               </td>
+              <td class="px-3 py-2"><select v-if="tab!=='cart'" :value="a.condition || 'New'" @change="onCondition(a, $event)" class="h-7 px-1.5 rounded border border-slate-200 text-xs"><option>New</option><option>Used</option></select><Badge v-else tone="slate">{{ a.condition || 'New' }}</Badge></td>
               <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
-              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button v-if="tab!=='cart' && !a.holder_type && (a.status==='In Warehouse' || a.status==='Available')" class="text-xs font-semibold text-blue-700 hover:underline mr-2" @click="openShipOut(a)">Ship out</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
+              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button v-if="tab!=='cart' && !a.holder_type && (a.status==='In Warehouse' || a.status==='Available')" class="text-xs font-semibold text-blue-700 hover:underline mr-2" @click="openShipOut(a)">Ship out</button><button v-if="tab!=='cart' && a.status==='Returned'" class="text-xs font-semibold text-violet-700 hover:underline mr-2" @click="returnToWh(a)">Return to warehouse</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
-            <tr v-if="!total"><td :colspan="4 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
+            <tr v-if="!total"><td :colspan="5 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
           </tbody>
         </table>
       </div>
@@ -333,6 +342,7 @@ const chips = computed(() => [
         <div class="grid grid-cols-2 gap-3">
           <label class="text-sm"><span class="block text-slate-600 mb-1">{{ tab==='cart' ? 'Cart #' : 'ID' }} <span class="text-rose-500">*</span></span><input v-model="form.code" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Status</span><select v-model="form.status" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="o in store.assetStatusOptions" :key="o">{{ o }}</option></select></label>
+          <label v-if="tab!=='cart'" class="text-sm"><span class="block text-slate-600 mb-1">Condition</span><select v-model="form.condition" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option>New</option><option>Used</option></select></label>
         </div>
         <div class="rounded-lg bg-slate-50 ring-1 ring-slate-100 p-3">
           <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Holder <ReqTag ver="V5" code="HOLDER" text="A cart is held by a Facility; IT equipment by an Employee. Leave as None to keep it in the warehouse." /></div>
@@ -434,7 +444,8 @@ const chips = computed(() => [
     <Modal v-if="showImport" title="Import assets" sub="Paste one asset per line to add existing units in bulk — no manual entry. First value is the ID, then the type's columns in order." @close="showImport=false">
       <div class="space-y-3">
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Asset type</span><select v-model="importType" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="c in classes.filter((x) => x.id !== 'cart')" :key="c.id" :value="c.id">{{ c.label }}</option></select></label>
-        <div class="text-[11px] text-slate-500">Column order: <b>ID</b><span v-for="c in store.assetClassMeta(importType).cols" :key="c[0]">, {{ c[1] }}</span>. Separate values with a comma or tab; one asset per line.</div>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">These assets are</span><select v-model="importPlace" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="warehouse">In the warehouse</option><option value="facility">Deployed to a facility</option><option value="employee">Assigned to an employee</option></select></label>
+        <div class="text-[11px] text-slate-500">Column order: <b>ID</b><span v-for="c in store.assetClassMeta(importType).cols" :key="c[0]">, {{ c[1] }}</span><span v-if="importPlace !== 'warehouse'">, <b>{{ importPlace === 'facility' ? 'facility' : 'employee' }} name</b></span>. Separate values with a comma or tab; one asset per line.</div>
         <textarea v-model="importText" rows="8" placeholder="LT-2001, Dell, 5400, SN123, 16GB, i7&#10;LT-2002, HP, 840, SN456, 16GB, i5" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono"></textarea>
       </div>
       <template #footer><Btn variant="secondary" @click="showImport=false">Cancel</Btn><Btn @click="runImport">Import assets</Btn></template>
@@ -459,6 +470,7 @@ const chips = computed(() => [
             <label class="text-sm"><span class="block text-slate-600 mb-1">Type name</span><input v-model="typeForm.label" placeholder="e.g. Scanner" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
             <label class="text-sm"><span class="block text-slate-600 mb-1">ID prefix</span><input v-model="typeForm.prefix" placeholder="e.g. SC-" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
             <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Assigned to</span><select v-model="typeForm.assign" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="employee">An employee</option><option value="facility">A facility</option></select></label>
+            <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Built from <span class="text-slate-400 font-normal">· optional — consumes this from inventory each time you build one</span></span><select v-model="typeForm.source" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="none">Nothing (just capture details)</option><option v-for="o in sourceOptions" :key="o.v" :value="o.v">{{ o.label }}</option></select></label>
           </div>
           <div class="flex items-center justify-between mb-1"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Columns</span><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="addCol">+ Add column</button></div>
           <div class="space-y-1.5 max-h-[26vh] overflow-y-auto">
