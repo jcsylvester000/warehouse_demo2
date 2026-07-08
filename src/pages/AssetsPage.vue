@@ -114,6 +114,30 @@ function runImport() {
   toast.success(added + ' asset' + (added === 1 ? '' : 's') + ' imported' + (skipped ? ', ' + skipped + ' skipped (duplicate/blank)' : '') + '.');
   importText.value = ''; showImport.value = false;
 }
+// ---------- Unified "Build Asset": pick a type, then branch (simple -> form; cart -> proven cart engine) ----------
+const showPick = ref(false);
+const cartTypes = computed(() => (store.assemblies || []).filter((a) => a.assembly_kind !== 'single'));
+const simpleTypes = computed(() => (store.assetClassList || []).filter((c) => c.id !== 'cart'));
+function openBuildAsset() { showPick.value = true; }
+function pickSimple(c) { showPick.value = false; pickTab(c.id); openAdd(); }
+function pickCart(def) { showPick.value = false; openCartBuild(def.id); }
+const showCartBuild = ref(false);
+const cbuild = reactive({ assembly_id: '', rows: [] });
+const cbuildDef = computed(() => store.assemblyById(cbuild.assembly_id));
+const cbuildAutoFill = computed(() => cbuild.assembly_id ? store.assemblyAutoFill(cbuild.assembly_id) : {});
+function cbSuggest() { let max = 0; const scan = (code) => { const m = String(code || '').match(/(\d+)\s*$/); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } }; (store.carts || []).forEach((c) => scan(c.code)); (cbuild.rows || []).forEach((r) => scan(r.code)); return String(max + 1).padStart(4, '0'); }
+function cbNewRow() { return { code: cbSuggest(), cart_color: '', tablet_number: '' }; }
+function openCartBuild(id) { cbuild.assembly_id = id; cbuild.rows = [cbNewRow()]; showCartBuild.value = true; }
+function cbAddRow() { cbuild.rows.push(cbNewRow()); }
+function cbRemoveRow(i) { cbuild.rows.splice(i, 1); if (!cbuild.rows.length) cbuild.rows.push(cbNewRow()); }
+function cbSave() {
+  const af = store.assemblyAutoFill(cbuild.assembly_id);
+  const rows = cbuild.rows.filter((r) => String(r.code).trim()).map((r) => ({ assembly_id: cbuild.assembly_id, code: String(r.code).trim(), cart_color: r.cart_color, tablet_number: r.tablet_number, fields: af, condition: 'New' }));
+  if (!rows.length) return toast.error('Enter at least one code.');
+  const res = store.buildAssembliesBatch(rows);
+  if (res.built.length) { toast.success('Built ' + res.built.length + ' cart(s) — parts removed from inventory.'); tab.value = 'cart'; showCartBuild.value = false; }
+  if (res.errors.length) toast.error(res.errors.length + ' failed: ' + res.errors.map((e) => e.code + ' (' + e.error + ')').slice(0, 3).join('; '));
+}
 
 // ---------- export current view (WM reporting) ----------
 function exportCsv() {
@@ -185,6 +209,7 @@ const chips = computed(() => [
           <button v-for="h in [['','All'],['employee','User Assets'],['facility','Facility'],['warehouse','In warehouse']]" :key="h[0]" class="px-2.5 h-9 rounded-lg text-xs font-semibold border" :class="holderFilter===h[0]?'bg-slate-800 text-white border-slate-800':'border-slate-200 text-slate-600'" @click="holderFilter=h[0]">{{ h[1] }}</button>
         </div>
         <Btn variant="secondary" size="sm" @click="exportCsv">Export CSV</Btn>
+        <Btn size="sm" @click="openBuildAsset">+ Build asset</Btn>
         <Btn variant="secondary" size="sm" @click="openTypes">Manage asset types</Btn>
         <Btn variant="secondary" size="sm" @click="openImport">Import</Btn>
         <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Build {{ meta.label.replace(/s$/, '') }}</Btn>
@@ -337,6 +362,51 @@ const chips = computed(() => [
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>
       </div>
       <template #footer><Btn variant="secondary" @click="showRecv=false">Cancel</Btn><Btn variant="success" @click="saveRecv">Confirm received</Btn></template>
+    </Modal>
+
+    <!-- Unified Build Asset: choose what to build -->
+    <Modal v-if="showPick" title="Build asset" sub="Pick what you're building — a cart pulls its parts from inventory; other types just capture their details." wide @close="showPick=false">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Cart types <span class="font-normal text-slate-400">· parts pulled from inventory</span></div>
+          <div class="space-y-1.5 max-h-[46vh] overflow-y-auto pr-1">
+            <button v-for="d in cartTypes" :key="d.id" class="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:bg-indigo-50/50 hover:border-indigo-200" @click="pickCart(d)">
+              <div class="text-sm font-semibold text-slate-800">{{ d.name }}</div>
+              <div class="text-[11px] text-slate-500 truncate">{{ (d.composition||[]).length }} part group(s)</div>
+            </button>
+            <p v-if="!cartTypes.length" class="text-[11px] text-slate-400 py-2">No cart types defined yet.</p>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Other asset types</div>
+          <div class="space-y-1.5 max-h-[46vh] overflow-y-auto pr-1">
+            <button v-for="c in simpleTypes" :key="c.id" class="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:bg-indigo-50/50 hover:border-indigo-200 flex items-center gap-2" @click="pickSimple(c)">
+              <span class="text-sm font-semibold text-slate-800 flex-1">{{ c.label }}</span>
+              <span v-if="c.prefix" class="font-mono text-[11px] text-slate-400">{{ c.prefix }}0001</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Cart build (reuses the proven cart engine: buildAssembliesBatch) -->
+    <Modal v-if="showCartBuild" :title="'Build ' + (cbuildDef ? cbuildDef.name : 'cart')" sub="Each unit consumes its parts from inventory and is tracked as an asset." wide @close="showCartBuild=false">
+      <div class="space-y-3">
+        <div class="rounded-lg bg-violet-50/60 ring-1 ring-violet-100 px-3 py-2 text-[11px] text-slate-600">Auto-filled from the cart type → Cart Type <b>{{ cbuildAutoFill.cart_type || '—' }}</b>, Key <b>{{ cbuildAutoFill.key_type || '—' }}</b>, BP <b>{{ cbuildAutoFill.bp_device || '—' }}</b>. Clini/Omni, LTE and Regional are captured at ship-out.</div>
+        <table class="w-full text-sm">
+          <thead class="text-[11px] uppercase tracking-wide text-slate-400"><tr><th class="text-left py-1">Cart code</th><th class="text-left py-1">Tablet #</th><th class="text-left py-1">Color</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="(r, i) in cbuild.rows" :key="i">
+              <td class="py-1 pr-2"><input v-model="r.code" class="w-full h-8 px-2 rounded border border-slate-300 text-sm font-mono" /></td>
+              <td class="py-1 pr-2"><input v-model="r.tablet_number" class="w-full h-8 px-2 rounded border border-slate-300 text-sm" /></td>
+              <td class="py-1 pr-2"><input v-model="r.cart_color" class="w-full h-8 px-2 rounded border border-slate-300 text-sm" /></td>
+              <td class="py-1"><button class="text-slate-400 hover:text-rose-600 text-lg leading-none" @click="cbRemoveRow(i)">&times;</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="text-xs font-semibold text-indigo-600 hover:underline" @click="cbAddRow">+ Build another</button>
+      </div>
+      <template #footer><Btn variant="secondary" @click="showCartBuild=false">Cancel</Btn><Btn variant="success" @click="cbSave">Build carts</Btn></template>
     </Modal>
 
     <!-- Bulk import existing assets (paste rows) -->
