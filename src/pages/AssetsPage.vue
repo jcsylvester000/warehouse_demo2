@@ -71,10 +71,29 @@ function openEdit(a) { editingId.value = a.id; const f = {}; (meta.value.cols ||
 function saveEdit() {
   if (!String(form.code).trim()) return toast.error('A Code / ID is required.');
   const patch = { code: String(form.code).trim(), holder_type: form.holder_type, holder: form.holder_type ? String(form.holder).trim() : '', emp_state: form.holder_type === 'employee' ? String(form.emp_state).trim() : '', status: form.status, ...form.fields };
-  if (editingId.value) { store.updateAsset(editingId.value, patch); toast.success(patch.code + ' updated.'); }
+  if (editingId.value) { const r = store.updateAsset(editingId.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' updated.'); }
   else { const r = store.addAsset(tab.value, patch); if (r && r.error) return toast.error(r.error); toast.success(patch.code + ' added.'); }
   showEdit.value = false;
 }
+
+// ---------- Manage Asset Types: define a type, its ID prefix, and its columns (build vs ship-out) ----------
+const showTypes = ref(false);
+const typeForm = reactive({ id: null, label: '', prefix: '', assign: 'employee', cols: [] });
+function resetTypeForm() { Object.assign(typeForm, { id: null, label: '', prefix: '', assign: 'employee', cols: [] }); }
+function openTypes() { resetTypeForm(); showTypes.value = true; }
+function editType(c) { Object.assign(typeForm, { id: c.id, label: c.label, prefix: c.prefix || '', assign: c.assign || 'employee', cols: (c.cols || []).map((col) => ({ key: col[0], label: col[1], stage: col[2] || 'build' })) }); }
+function addCol() { typeForm.cols.push({ key: '', label: '', stage: 'build' }); }
+function rmCol(i) { typeForm.cols.splice(i, 1); }
+function saveType() {
+  const cols = typeForm.cols.filter((c) => String(c.label).trim()).map((c) => { const key = (c.key || c.label).toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); return c.stage === 'shipout' ? [key, c.label.trim(), 'shipout'] : [key, c.label.trim()]; });
+  const payload = { label: typeForm.label, prefix: typeForm.prefix, assign: typeForm.assign, cols };
+  const r = typeForm.id ? store.updateAssetType(typeForm.id, payload) : store.addAssetType(payload);
+  if (r && r.error) return toast.error(r.error);
+  toast.success('Asset type ' + (typeForm.id ? 'updated' : 'added') + '.'); resetTypeForm();
+}
+function removeType(c) { const r = store.removeAssetType(c.id); if (r && r.error) return toast.error(r.error); toast.success(c.label + ' removed.'); if (tab.value === c.id) tab.value = 'cart'; }
+// ---------- Employee confirms receipt of an assigned asset ----------
+function confirmReceipt(a) { const r = store.confirmAssetReceipt(a.id, a.holder); if (r && r.error) return toast.error(r.error); toast.success(a.code + ' receipt confirmed.'); }
 
 // ---------- export current view (WM reporting) ----------
 function exportCsv() {
@@ -146,8 +165,9 @@ const chips = computed(() => [
           <button v-for="h in [['','All'],['employee','User Assets'],['facility','Facility'],['warehouse','In warehouse']]" :key="h[0]" class="px-2.5 h-9 rounded-lg text-xs font-semibold border" :class="holderFilter===h[0]?'bg-slate-800 text-white border-slate-800':'border-slate-200 text-slate-600'" @click="holderFilter=h[0]">{{ h[1] }}</button>
         </div>
         <Btn variant="secondary" size="sm" @click="exportCsv">Export CSV</Btn>
-        <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Add {{ meta.label.replace(/s$/, '') }}</Btn>
-        <span v-else class="text-xs text-slate-400 self-center">Carts appear here automatically — build them in <span class="font-semibold text-slate-500">Inventory ▸ Carts</span></span>
+        <Btn variant="secondary" size="sm" @click="openTypes">Manage asset types</Btn>
+        <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Build {{ meta.label.replace(/s$/, '') }}</Btn>
+        <span v-else class="text-xs text-slate-400 self-center">Carts are built in <span class="font-semibold text-slate-500">Inventory</span></span>
       </div>
 
       <div class="overflow-x-auto">
@@ -175,7 +195,7 @@ const chips = computed(() => [
                 </select>
               </td>
               <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
-              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
+              <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
             <tr v-if="!total"><td :colspan="4 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
           </tbody>
@@ -272,9 +292,15 @@ const chips = computed(() => [
           </div>
         </div>
         <div>
-          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{{ meta.label }} details</div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{{ meta.label }} details <span class="text-slate-400 normal-case font-normal">· entered when built</span></div>
           <div class="grid grid-cols-2 gap-3">
-            <label v-for="c in meta.cols" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><input v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label v-for="c in store.assetTypeBuildCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><input v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+          </div>
+        </div>
+        <div v-if="store.assetTypeShipoutCols(tab).length">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Ship-out details <span class="text-slate-400 normal-case font-normal">· captured when it ships to its holder</span></div>
+          <div class="grid grid-cols-2 gap-3">
+            <label v-for="c in store.assetTypeShipoutCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><input v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
         </div>
       </div>
@@ -290,6 +316,40 @@ const chips = computed(() => [
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>
       </div>
       <template #footer><Btn variant="secondary" @click="showRecv=false">Cancel</Btn><Btn variant="success" @click="saveRecv">Confirm received</Btn></template>
+    </Modal>
+
+    <!-- Manage Asset Types: define a type, its ID prefix, and its columns (each captured at build or ship-out) -->
+    <Modal v-if="showTypes" title="Manage asset types" sub="A type is the recipe for an asset — its ID prefix and the columns you fill in. Mark each column as captured when the asset is built or when it ships out." wide @close="showTypes=false">
+      <div class="grid md:grid-cols-5 gap-4">
+        <div class="md:col-span-2">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Existing types</div>
+          <div class="space-y-1.5 max-h-[52vh] overflow-y-auto pr-1">
+            <div v-for="c in classes" :key="c.id" class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+              <div class="flex-1 min-w-0"><div class="text-sm font-semibold text-slate-800">{{ c.label }} <span v-if="c.prefix" class="font-mono text-[11px] text-slate-400">{{ c.prefix }}0001</span></div><div class="text-[11px] text-slate-500">{{ (c.cols||[]).length }} columns · to {{ c.assign }}</div></div>
+              <button class="text-xs font-semibold text-indigo-600 hover:underline" @click="editType(c)">Edit</button>
+              <button v-if="c.id!=='cart'" class="text-xs font-semibold text-rose-600 hover:underline" @click="removeType(c)">Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="md:col-span-3 rounded-xl bg-slate-50 ring-1 ring-slate-100 p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{{ typeForm.id ? 'Edit type' : 'New type' }}</div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <label class="text-sm"><span class="block text-slate-600 mb-1">Type name</span><input v-model="typeForm.label" placeholder="e.g. Scanner" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label class="text-sm"><span class="block text-slate-600 mb-1">ID prefix</span><input v-model="typeForm.prefix" placeholder="e.g. SC-" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Assigned to</span><select v-model="typeForm.assign" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option value="employee">An employee</option><option value="facility">A facility</option></select></label>
+          </div>
+          <div class="flex items-center justify-between mb-1"><span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Columns</span><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="addCol">+ Add column</button></div>
+          <div class="space-y-1.5 max-h-[26vh] overflow-y-auto">
+            <div v-for="(col, i) in typeForm.cols" :key="i" class="flex items-center gap-2">
+              <input v-model="col.label" placeholder="Column name" class="flex-1 h-8 px-2 rounded border border-slate-300 text-sm" />
+              <select v-model="col.stage" class="h-8 px-1.5 rounded border border-slate-300 text-xs"><option value="build">At build</option><option value="shipout">At ship-out</option></select>
+              <button class="text-slate-400 hover:text-rose-600 text-lg leading-none" @click="rmCol(i)">&times;</button>
+            </div>
+            <p v-if="!typeForm.cols.length" class="text-[11px] text-slate-400 py-2">No columns yet — add the fields this asset needs (brand, serial, …).</p>
+          </div>
+          <div class="flex justify-end gap-2 mt-3"><Btn v-if="typeForm.id" variant="secondary" size="sm" @click="resetTypeForm">Cancel edit</Btn><Btn size="sm" @click="saveType">{{ typeForm.id ? 'Save type' : 'Add type' }}</Btn></div>
+        </div>
+      </div>
     </Modal>
   </div>
 </template>
