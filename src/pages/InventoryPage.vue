@@ -207,6 +207,16 @@ function saveAssign() { store.setCartLocation(assignCart.value, 'Facility', assi
 
 /* item-only options for the cart component picker (singles only) */
 const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group));
+/* Inventory ▸ Assets view — tracked units physically in the warehouse (deployed ones live under the Assets section). */
+const warehouseAssets = computed(() => {
+  const out = [];
+  (store.assetClassList || []).forEach((c) => {
+    (store.assetsOf(c.id) || []).forEach((a) => {
+      if (!a.holder_type && (a.status === 'In Warehouse' || a.status === 'Available')) out.push({ ...a, klassLabel: c.label });
+    });
+  });
+  return out;
+});
 </script>
 
 <template>
@@ -214,7 +224,7 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
     <Hero title="Inventory" subtitle="One list of items and groups. Numeric item numbers auto-generate; click any row to open it." :chips="chips" @chip="onChip" />
 
     <div class="mb-4 rounded-xl bg-emerald-50/70 ring-1 ring-emerald-100 px-4 py-3 text-sm text-emerald-900 flex items-start gap-2">
-      <p><b>Groups are items.</b> A group lives in the same list as everything else and can contain single items <b>and</b> nested groups. <b>Click a row</b> to edit it, adjust stock, or view lots & logs. <b>Item numbers</b> are numeric and auto-generated. <ReqTag ver="V7" code="FRESH-DATA" text="V7 — Inventory starts empty for fresh data. Add single items and groups with the + buttons, then build carts from them under the Assemblies tab. Purchase Orders, Sales Orders and Returns also start empty; 'Reset demo data' returns to this clean state." /></p>
+      <p><b>Groups are items.</b> A group lives in the same list as everything else and can contain single items <b>and</b> nested groups. <b>Click a row</b> to edit it, adjust stock, or view lots & logs. <b>Item numbers</b> are numeric and auto-generated. <ReqTag ver="V7" code="FRESH-DATA" text="V7 — Inventory starts empty for fresh data. Add single items and groups with the + buttons, then build carts from them under the Carts tab. Purchase Orders, Sales Orders and Returns also start empty; 'Reset demo data' returns to this clean state." /></p>
     </div>
 
     <Card :padded="false">
@@ -222,9 +232,10 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
         <div class="flex">
           <button class="inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors" :class="tab==='list'?'border-indigo-600 text-indigo-700':'border-transparent text-slate-500 hover:text-slate-700'" @click="tab='list'">Items &amp; Groups <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold" :class="tab==='list'?'bg-indigo-100 text-indigo-700':'bg-slate-100 text-slate-500'">{{ store.catalog.length }}</span></button>
           <button class="inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors" :class="tab==='cart'?'border-purple-600 text-purple-700':'border-transparent text-slate-500 hover:text-slate-700'" @click="tab='cart'">Carts <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold" :class="tab==='cart'?'bg-purple-100 text-purple-700':'bg-slate-100 text-slate-500'">{{ store.carts.length }}</span></button>
+          <button class="inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors" :class="tab==='asset'?'border-teal-600 text-teal-700':'border-transparent text-slate-500 hover:text-slate-700'" @click="tab='asset'">Assets <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold" :class="tab==='asset'?'bg-teal-100 text-teal-700':'bg-slate-100 text-slate-500'">{{ warehouseAssets.length }}</span></button>
         </div>
         <Btn v-if="tab==='list'" size="sm" @click="openAdd()">+ Add Item</Btn>
-        <Btn v-else size="sm" @click="openBatch()">+ Build Carts</Btn>
+        <Btn v-else-if="tab==='cart'" size="sm" @click="openBatch()">+ Build Carts</Btn>
       </div>
 
       <!-- Items & Groups (minimal: SKU, Name, On Hand, Bin) -->
@@ -250,12 +261,36 @@ const singleOptions = computed(() => store.catalogLite.filter((o) => !o.is_group
             <tbody class="divide-y divide-slate-100">
               <tr v-for="o in list" :key="o.id" class="hover:bg-indigo-50/40 cursor-pointer" @click="openDetail(o)">
                 <td class="px-5 py-3 font-mono text-xs text-slate-600">{{ o.sku }}</td>
-                <td class="px-5 py-3 font-medium text-slate-800"><img v-if="o.image" :src="o.image" alt="" class="inline-block w-7 h-7 object-cover rounded ring-1 ring-slate-200 mr-2 align-middle cursor-zoom-in hover:ring-indigo-300" @click.stop="lb.open(o.image, o.name)" />{{ o.name }}<Badge v-if="o.is_group" tone="emerald" class="ml-2">group</Badge><Badge v-if="o.is_assembly" tone="violet" class="ml-2">assembly</Badge><Badge v-if="!o.is_active" tone="slate" class="ml-1">inactive</Badge></td>
+                <td class="px-5 py-3 font-medium text-slate-800"><img v-if="o.image" :src="o.image" alt="" class="inline-block w-7 h-7 object-cover rounded ring-1 ring-slate-200 mr-2 align-middle cursor-zoom-in hover:ring-indigo-300" @click.stop="lb.open(o.image, o.name)" />{{ o.name }}<Badge v-if="o.is_group" tone="emerald" class="ml-2">group</Badge><Badge v-if="o.is_assembly" tone="violet" class="ml-2">asset</Badge><Badge v-if="!o.is_active" tone="slate" class="ml-1">inactive</Badge></td>
                 <td class="px-5 py-3 text-right tabular-nums font-semibold text-slate-800">{{ o.on_hand }}</td>
                 <td class="px-5 py-3 text-slate-600">{{ o.bin }}</td>
                 <td class="px-5 py-3 text-right"><span class="text-xs text-indigo-600 font-semibold">Open →</span></td>
               </tr>
               <tr v-if="!list.length"><td colspan="5" class="px-5 py-10 text-center text-slate-400">No items match.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Assets in the warehouse (Items · Groups · Assets taxonomy) -->
+      <div v-show="tab==='asset'">
+        <div class="px-5 py-3 text-xs text-slate-500 border-b border-slate-100">Tracked assets currently <b>in the warehouse</b>. Once shipped, an asset moves to its holder and shows only under the <b>Assets</b> section. Build carts on the Carts tab; other asset types under <b>Assets ▸ Build</b>.</div>
+        <div class="overflow-auto max-h-[65vh]">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider sticky top-0 z-10"><tr>
+              <th class="px-5 py-2.5 text-left font-semibold bg-slate-50">ID / Code</th>
+              <th class="px-5 py-2.5 text-left font-semibold bg-slate-50">Type</th>
+              <th class="px-5 py-2.5 text-left font-semibold bg-slate-50">Condition</th>
+              <th class="px-5 py-2.5 text-left font-semibold bg-slate-50">Status</th>
+            </tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="a in warehouseAssets" :key="a.id" class="hover:bg-indigo-50/40">
+                <td class="px-5 py-3 font-mono text-xs text-slate-700">{{ a.code }}</td>
+                <td class="px-5 py-3 text-slate-700">{{ a.klassLabel }}</td>
+                <td class="px-5 py-3 text-slate-600">{{ a.condition || 'New' }}</td>
+                <td class="px-5 py-3"><Badge tone="slate">{{ a.status }}</Badge></td>
+              </tr>
+              <tr v-if="!warehouseAssets.length"><td colspan="4" class="px-5 py-10 text-center text-slate-400">No assets in the warehouse yet — build carts (Carts tab) or add assets under the Assets section.</td></tr>
             </tbody>
           </table>
         </div>
