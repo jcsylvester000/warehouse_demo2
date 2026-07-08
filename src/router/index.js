@@ -10,6 +10,7 @@ const routes = [
   { path: '/sales-orders', name: 'sales-orders', component: () => import('@/pages/SalesOrdersPage.vue') },
   { path: '/returns', name: 'returns', component: () => import('@/pages/ReturnsPage.vue') },
   { path: '/roles', name: 'roles', component: () => import('@/pages/RolesPage.vue') },
+  { path: '/vendors', name: 'vendors', component: () => import('@/pages/VendorsPage.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 

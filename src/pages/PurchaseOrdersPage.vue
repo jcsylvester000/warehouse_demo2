@@ -81,7 +81,7 @@ function saveForm() {
 const showVendor = ref(false);
 const vendorForm = reactive({ name: '', email: '', pay_terms: 'Net 30', deposit_percent: 0 });
 function openVendor() { Object.assign(vendorForm, { name: '', email: '', pay_terms: 'Net 30', deposit_percent: 0 }); showVendor.value = true; }
-function saveVendor() { if (!vendorForm.name.trim()) return toast.error('Vendor name required.'); const v = store.addVendor({ ...vendorForm }); form.vendor_id = v.id; toast.success('Vendor added.'); showVendor.value = false; }
+function saveVendor() { if (!vendorForm.name.trim()) return toast.error('Vendor name required.'); const v = store.addVendor({ ...vendorForm }); if (v && v.error) return toast.error(v.error); form.vendor_id = v.id; toast.success('Vendor added.'); showVendor.value = false; }
 const showManageVendors = ref(false);
 function openManageVendors() { showManageVendors.value = true; }
 

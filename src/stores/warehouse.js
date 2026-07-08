@@ -488,6 +488,7 @@ export const useWarehouseStore = defineStore('warehouse', {
       };
     },
     vendorName: (s) => { const m = new Map(s.vendors.map((v) => [v.id, v])); return (id) => (m.get(id) || {}).name || '—'; },
+    vendorById: (s) => (id) => (s.vendors || []).find((v) => v.id === id),
     typeName: (s) => (id) => (s.itemTypes.find((t) => t.id === id) || {}).name || '—',
     itemById: (s) => { const m = new Map(s.items.map((i) => [i.id, i])); return (id) => m.get(id); },
     groupById: (s) => { const m = new Map(s.groups.map((g) => [g.id, g])); return (id) => m.get(id); },
@@ -722,8 +723,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     // ---- Purchase Orders ----
     nextPoNumber() { this.counters.po += 1; return 'PO-2026-' + String(this.counters.po).padStart(4, '0'); },
     nextSoNumber() { this.counters.so += 1; return 'SO-2026-' + String(this.counters.so).padStart(4, '0'); },
-    addVendor({ name, email, pay_terms, deposit_percent }) { const v = { id: uid('v'), name, email: email || '', pay_terms: pay_terms || 'Net 30', deposit_percent: Number(deposit_percent) || 0 }; this.vendors.push(v); return v; },
+    addVendor({ name, email, phone, contact, address, pay_terms, deposit_percent }) { const nm = String(name || '').trim(); if (!nm) return { error: 'A vendor name is required.' }; if ((this.vendors || []).some((x) => (x.name || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'A vendor named "' + nm + '" already exists.' }; const v = { id: uid('v'), name: nm, email: email || '', phone: phone || '', contact: contact || '', address: address || '', pay_terms: pay_terms || 'Net 30', deposit_percent: Number(deposit_percent) || 0 }; this.vendors.push(v); this.logActivity('Vendor added: ' + nm); return v; },
     updateVendor(id, patch) { const v = this.vendors.find((x) => x.id === id); if (v) Object.assign(v, patch.deposit_percent != null ? { ...patch, deposit_percent: Number(patch.deposit_percent) || 0 } : patch); return v; }, // V4 PO-4: edit vendor terms
+    removeVendor(id) { if ((this.items || []).some((i) => i.vendor_id === id) || (this.groups || []).some((g) => g.vendor_id === id)) return { error: 'This vendor is linked to items or groups — reassign them first.' }; const i = (this.vendors || []).findIndex((v) => v.id === id); if (i < 0) return { error: 'Vendor not found.' }; const removed = this.vendors.splice(i, 1)[0]; this.logActivity('Vendor removed: ' + (removed ? removed.name : id)); return { ok: true }; },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },

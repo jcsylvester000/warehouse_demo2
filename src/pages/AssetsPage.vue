@@ -94,6 +94,26 @@ function saveType() {
 function removeType(c) { const r = store.removeAssetType(c.id); if (r && r.error) return toast.error(r.error); toast.success(c.label + ' removed.'); if (tab.value === c.id) tab.value = 'cart'; }
 // ---------- Employee confirms receipt of an assigned asset ----------
 function confirmReceipt(a) { const r = store.confirmAssetReceipt(a.id, a.holder); if (r && r.error) return toast.error(r.error); toast.success(a.code + ' receipt confirmed.'); }
+// ---------- Bulk import existing assets (paste rows — avoids manual entry) ----------
+const showImport = ref(false);
+const importType = ref('');
+const importText = ref('');
+function openImport() { importType.value = (tab.value && tab.value !== 'cart') ? tab.value : ((store.assetClassList.find((c) => c.id !== 'cart') || {}).id || ''); importText.value = ''; showImport.value = true; }
+function runImport() {
+  const klass = importType.value; if (!klass) return toast.error('Pick an asset type.');
+  const cols = (store.assetClassMeta(klass).cols || []).map((c) => c[0]);
+  const lines = importText.value.split('\n').map((l) => l.trim()).filter(Boolean);
+  let added = 0, skipped = 0;
+  lines.forEach((line) => {
+    const parts = line.split(/[\t,]/).map((x) => x.trim());
+    const code = parts[0]; if (!code) { skipped++; return; }
+    const rec = { code }; cols.forEach((k, i) => { if (parts[i + 1] !== undefined && parts[i + 1] !== '') rec[k] = parts[i + 1]; });
+    const r = store.addAsset(klass, rec);
+    if (r && r.error) skipped++; else added++;
+  });
+  toast.success(added + ' asset' + (added === 1 ? '' : 's') + ' imported' + (skipped ? ', ' + skipped + ' skipped (duplicate/blank)' : '') + '.');
+  importText.value = ''; showImport.value = false;
+}
 
 // ---------- export current view (WM reporting) ----------
 function exportCsv() {
@@ -166,6 +186,7 @@ const chips = computed(() => [
         </div>
         <Btn variant="secondary" size="sm" @click="exportCsv">Export CSV</Btn>
         <Btn variant="secondary" size="sm" @click="openTypes">Manage asset types</Btn>
+        <Btn variant="secondary" size="sm" @click="openImport">Import</Btn>
         <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Build {{ meta.label.replace(/s$/, '') }}</Btn>
         <span v-else class="text-xs text-slate-400 self-center">Carts are built in <span class="font-semibold text-slate-500">Inventory</span></span>
       </div>
@@ -316,6 +337,16 @@ const chips = computed(() => [
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Delivery photos</span><input type="file" multiple class="text-xs" @change="onPhotos" /><span v-if="recv.photos.length" class="text-xs text-slate-500 ml-2">{{ recv.photos.length }} photo(s)</span></label>
       </div>
       <template #footer><Btn variant="secondary" @click="showRecv=false">Cancel</Btn><Btn variant="success" @click="saveRecv">Confirm received</Btn></template>
+    </Modal>
+
+    <!-- Bulk import existing assets (paste rows) -->
+    <Modal v-if="showImport" title="Import assets" sub="Paste one asset per line to add existing units in bulk — no manual entry. First value is the ID, then the type's columns in order." @close="showImport=false">
+      <div class="space-y-3">
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Asset type</span><select v-model="importType" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="c in classes.filter((x) => x.id !== 'cart')" :key="c.id" :value="c.id">{{ c.label }}</option></select></label>
+        <div class="text-[11px] text-slate-500">Column order: <b>ID</b><span v-for="c in store.assetClassMeta(importType).cols" :key="c[0]">, {{ c[1] }}</span>. Separate values with a comma or tab; one asset per line.</div>
+        <textarea v-model="importText" rows="8" placeholder="LT-2001, Dell, 5400, SN123, 16GB, i7&#10;LT-2002, HP, 840, SN456, 16GB, i5" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono"></textarea>
+      </div>
+      <template #footer><Btn variant="secondary" @click="showImport=false">Cancel</Btn><Btn @click="runImport">Import assets</Btn></template>
     </Modal>
 
     <!-- Manage Asset Types: define a type, its ID prefix, and its columns (each captured at build or ship-out) -->
