@@ -86,7 +86,7 @@ const chips = computed(() => [
   { label: 'New activity', value: store.newActivityCount, danger: store.newActivityCount > 0, clickable: true, tab: 'calendar' },
 ]);
 
-const evClass = (t) => ({ onb: 'bg-indigo-50 text-indigo-700', ship: 'bg-amber-50 text-amber-700', reg: 'bg-slate-100 text-slate-500', rec: 'bg-emerald-50 text-emerald-700' }[t] || 'bg-slate-100');
+const evClass = (t) => ({ onb: 'bg-blue-50 text-blue-700', ship: 'bg-amber-50 text-amber-700', reg: 'bg-slate-100 text-slate-500', rec: 'bg-emerald-50 text-emerald-700' }[t] || 'bg-slate-100');
 
 /* Contextual day view — phase 1 (plan) + phase 2 (schedule), actionable here.
    Shows only this day's onboard + schedule and the facilities involved. */
@@ -130,7 +130,7 @@ const ticketTone = (p) => ({ High: 'rose', Medium: 'amber', Low: 'slate', Suppor
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-slate-800">{{ monthName }} — my view</h3>
           <div class="flex gap-3 text-[11px] text-slate-500">
-            <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-indigo-200"></span>Onboarding</span>
+            <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-blue-200"></span>Onboarding</span>
             <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-amber-200"></span>Cart shipment</span>
             <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-200"></span>Regional</span>
             <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-emerald-200"></span>Received</span>
