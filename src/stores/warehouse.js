@@ -85,6 +85,8 @@ function seed() {
       { id: 'f-bayview', name: 'Bayview Center', city: 'Toms River, NJ', address: '88 Bay Blvd, Toms River, NJ 08753', regional_id: 'reg-rosa', provider: 'Dr. Kwesi Ofori', care_companion: 'Lena Ross', regional: 'Rosa Diaz', floor_plan: 'bayview_floorplan.pdf', onboard_date: '2026-06-17', carts_needed: 12, cart_shipment_date: '2026-06-18', status: 'Planned', notes: '', messages: [], attachments: ['bayview_floorplan.pdf'] },
       { id: 'f-cedar', name: 'Cedar Grove', city: 'Brick, NJ', address: '15 Cedar Rd, Brick, NJ 08723', regional_id: 'reg-tim', provider: 'Dr. Maya Singh', care_companion: 'Omar Vance', regional: 'Tim Boyd', floor_plan: null, onboard_date: '2026-06-22', carts_needed: null, cart_shipment_date: null, status: 'Onboarding', notes: '', messages: [], attachments: [] },
       { id: 'f-river', name: 'Riverside Care', city: 'Red Bank, NJ', address: '40 River St, Red Bank, NJ 07701', regional_id: 'reg-tim', provider: 'Dr. Alan Pierce', care_companion: 'Nina Park', regional: 'Tim Boyd', floor_plan: 'riverside_floorplan.pdf', onboard_date: '2026-06-25', carts_needed: null, cart_shipment_date: null, status: 'Onboarding', notes: '', messages: [], attachments: ['riverside_floorplan.pdf'] },
+      { id: 'f-oakwood', name: 'Oakwood Senior Living', city: 'Princeton, NJ', address: '55 Oak Ln, Princeton, NJ 08540', state: 'NJ', regional_id: 'reg-rosa', group: 'Eminent Healthcare', emr: 'Omnivers', provider: 'Dr. Sarah Kim', care_companion: 'Jordan Blake', regional: 'Rosa Diaz', ambassador: 'Rosa Diaz', floor_plan: null, onboard_date: '2026-07-10', carts_needed: 6, cart_shipment_date: '2026-07-12', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-summit', name: 'Summit Rehabilitation', city: 'Morristown, NJ', address: '210 Summit Ave, Morristown, NJ 07960', state: 'NJ', regional_id: 'reg-tim', group: 'Azure Healthcare Group', emr: 'Omnivers', provider: 'Elena Ruiz', care_companion: 'Marcus Bell', regional: 'Tim Boyd', ambassador: 'Tim Boyd', floor_plan: null, onboard_date: '2026-07-14', carts_needed: 9, cart_shipment_date: '2026-07-16', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
     ],
     regionals: [
       { id: 'reg-rosa', name: 'Rosa Diaz', area: 'NJ — North', email: 'rosa.diaz@carease.com', address: '200 North Office Pkwy, Newark, NJ 07102' },
@@ -110,6 +112,8 @@ function seed() {
       { id: 'u-tim', name: 'Tim Boyd', role: 'Regional Director', program: 'Regional', facility: 'NJ — South', email: 'tim.boyd@carease.com', address: '15 South Center Dr, Cherry Hill, NJ 08002' },
       { id: 'u-shaya', name: 'Shaya Karmel', role: 'Care Companion', program: 'APCM', facility: 'Riverside Care', email: 'shaya.karmel@carease.com', address: '40 River St, Red Bank, NJ 07701' },
       { id: 'u-malky', name: 'Malky Locker', role: 'Warehouse Manager', program: 'Warehouse', facility: 'All facilities', email: 'malky.locker@carease.com', address: '1 Warehouse Way, Lakewood, NJ 08701' },
+      { id: 'u-jordan', name: 'Jordan Blake', role: 'Care Companion', title: 'Care Coordinator', program: 'APCM', facility: 'Oakwood Senior Living', facility_id: 'f-oakwood', email: 'jordan.blake@careasehealth.com', phone: '16095551027', address: '55 Oak Ln, Princeton, NJ 08540', active: true },
+      { id: 'u-elena', name: 'Elena Ruiz', role: 'Provider', title: 'Nurse Practitioner', program: 'CoCM', facility: 'Summit Rehabilitation', facility_id: 'f-summit', email: 'elena.ruiz@careasehealth.com', phone: '19735550148', address: '210 Summit Ave, Morristown, NJ 07960', active: true },
     ],
     tickets: [
       { id: '#4821', priority: 'High', subject: 'BOL missing — Maple SNF receipt', kind: 'assigned' },
@@ -489,6 +493,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
     vendorName: (s) => { const m = new Map(s.vendors.map((v) => [v.id, v])); return (id) => (m.get(id) || {}).name || '—'; },
     vendorById: (s) => (id) => (s.vendors || []).find((v) => v.id === id),
+    usersByFacility: (s) => (name) => (s.users || []).filter((u) => u.facility === name),
+    facilityByName: (s) => (name) => (s.facilities || []).find((f) => f.name === name),
+    userAssetsFor: (s) => (name) => (s.userAssets || []).filter((a) => a.user === name),
     typeName: (s) => (id) => (s.itemTypes.find((t) => t.id === id) || {}).name || '—',
     itemById: (s) => { const m = new Map(s.items.map((i) => [i.id, i])); return (id) => m.get(id); },
     groupById: (s) => { const m = new Map(s.groups.map((g) => [g.id, g])); return (id) => m.get(id); },
@@ -750,6 +757,8 @@ export const useWarehouseStore = defineStore('warehouse', {
     addVendor({ name, email, phone, contact, address, pay_terms, deposit_percent }) { const nm = String(name || '').trim(); if (!nm) return { error: 'A vendor name is required.' }; if ((this.vendors || []).some((x) => (x.name || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'A vendor named "' + nm + '" already exists.' }; const v = { id: uid('v'), name: nm, email: email || '', phone: phone || '', contact: contact || '', address: address || '', pay_terms: pay_terms || 'Net 30', deposit_percent: Number(deposit_percent) || 0 }; this.vendors.push(v); this.logActivity('Vendor added: ' + nm); return v; },
     updateVendor(id, patch) { const v = this.vendors.find((x) => x.id === id); if (v) Object.assign(v, patch.deposit_percent != null ? { ...patch, deposit_percent: Number(patch.deposit_percent) || 0 } : patch); return v; }, // V4 PO-4: edit vendor terms
     removeVendor(id) { if ((this.items || []).some((i) => i.vendor_id === id) || (this.groups || []).some((g) => g.vendor_id === id)) return { error: 'This vendor is linked to items or groups — reassign them first.' }; const i = (this.vendors || []).findIndex((v) => v.id === id); if (i < 0) return { error: 'Vendor not found.' }; const removed = this.vendors.splice(i, 1)[0]; this.logActivity('Vendor removed: ' + (removed ? removed.name : id)); return { ok: true }; },
+    toggleUserActive(id) { const u = (this.users || []).find((x) => x.id === id); if (u) { u.active = u.active === false; this.logActivity('User ' + u.name + (u.active ? ' activated' : ' deactivated')); } },
+    toggleFacilityActive(id) { const f = (this.facilities || []).find((x) => x.id === id); if (f) { f.active = f.active === false; this.logActivity('Facility ' + f.name + (f.active ? ' activated' : ' deactivated')); } },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },

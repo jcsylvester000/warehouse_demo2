@@ -11,6 +11,8 @@ const routes = [
   { path: '/returns', name: 'returns', component: () => import('@/pages/ReturnsPage.vue') },
   { path: '/roles', name: 'roles', component: () => import('@/pages/RolesPage.vue') },
   { path: '/vendors', name: 'vendors', component: () => import('@/pages/VendorsPage.vue') },
+  { path: '/users', name: 'users', component: () => import('@/pages/UsersPage.vue') },
+  { path: '/facilities', name: 'facilities', component: () => import('@/pages/FacilitiesPage.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 

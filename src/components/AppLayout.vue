@@ -53,6 +53,8 @@ const nav = [
   { name: 'Sales Order', to: '/sales-orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2' },
   { name: 'Returns', to: '/returns', icon: 'M3 7h13a4 4 0 010 8h-3m0 0l3-3m-3 3l3 3' },
   { name: 'Roles & Permissions', to: '/roles', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', isNew: true },
+  { name: 'Users', to: '/users', icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1a4 4 0 10-4-4 4 4 0 004 4z', isNew: true },
+  { name: 'Facilities', to: '/facilities', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6', isNew: true },
 ];
 
 const showNotif = ref(false);
