@@ -235,7 +235,7 @@ const warehouseAssets = computed(() => {
           <button class="inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors" :class="tab==='asset'?'border-teal-600 text-teal-700':'border-transparent text-slate-500 hover:text-slate-700'" @click="tab='asset'">Assets <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold" :class="tab==='asset'?'bg-teal-100 text-teal-700':'bg-slate-100 text-slate-500'">{{ warehouseAssets.length }}</span></button>
         </div>
         <Btn v-if="tab==='list'" size="sm" @click="openAdd()">+ Add Item</Btn>
-        <Btn v-else-if="tab==='cart'" size="sm" @click="openBatch()">+ Build Carts</Btn>
+        <!-- carts are built under Assets ▸ Build asset -->
       </div>
 
       <!-- Items & Groups (minimal: SKU, Name, On Hand, Bin) -->
@@ -298,7 +298,7 @@ const warehouseAssets = computed(() => {
 
       <!-- Carts -->
       <div v-show="tab==='cart'">
-        <div class="px-5 py-3 text-xs text-slate-500 border-b border-slate-100 flex items-center gap-2">Assembled carts (tracked assets). Build consumes parts and creates one asset; assigning to a facility moves it there.<span class="ml-auto flex gap-2"><Btn variant="secondary" size="sm" @click="showTypes=true">Manage cart types</Btn><Btn size="sm" @click="openBatch()">+ Build carts <ReqTag ver="V6" code="AS-5" text="Build one or many carts at once — pick the cart type and it pulls the parts automatically." /></Btn></span></div>
+        <div class="px-5 py-3 text-xs text-slate-500 border-b border-slate-100 flex items-center gap-2">Carts in the warehouse (tracked assets). <b class="text-slate-600">Build carts under Assets ▸ Build asset</b> — here you set what each cart type contains.<span class="ml-auto flex gap-2"><Btn variant="secondary" size="sm" @click="showTypes=true">Manage cart types</Btn></span></div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider"><tr><th class="px-5 py-2.5 text-left font-semibold">Code</th><th class="px-5 py-2.5 text-left font-semibold">Type</th><th class="px-5 py-2.5 text-left font-semibold">Condition</th><th class="px-5 py-2.5 text-left font-semibold">Components</th><th class="px-5 py-2.5 text-right font-semibold">Cost (FIFO)</th><th class="px-5 py-2.5 text-left font-semibold">Location</th><th class="px-5 py-2.5 text-left font-semibold">Status</th><th class="px-5 py-2.5"></th></tr></thead>
@@ -376,7 +376,6 @@ const warehouseAssets = computed(() => {
         </div>
         <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
           <Btn variant="secondary" size="sm" @click="editFromDetail">Edit assembly</Btn>
-          <Btn variant="soft-primary" size="sm" @click="openBatch(detailAssembly.id)">Build</Btn>
         </div>
       </div>
     </Modal>
