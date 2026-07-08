@@ -25,17 +25,17 @@ function blur() { setTimeout(() => { open.value = false; }, 150); }
 
 // ---- type + availability labeling ----
 function kindOf(o) { return o.kind || (o.is_assembly ? 'assembly' : (o.is_group ? 'group' : 'item')); }
-const KL = { item: 'Item', group: 'Group', assembly: 'Assembly', cart: 'Cart' };
+const KL = { item: 'Item', group: 'Group', assembly: 'Asset', cart: 'Cart' };
 const KC = { item: 'bg-slate-100 text-slate-500', group: 'bg-emerald-100 text-emerald-700', assembly: 'bg-violet-100 text-violet-700', cart: 'bg-blue-100 text-blue-700' };
 function kindLabel(o) { return KL[kindOf(o)] || 'Item'; }
 function kindClass(o) { return KC[kindOf(o)] || KC.item; }
 function availWord(k) { return k === 'group' ? 'buildable' : (k === 'assembly' ? 'available' : 'on hand'); }
 
-// ---- columns view: one column per type (Items | Groups | Assemblies) so everything is visible at once (no long scroll) ----
+// ---- columns view: one column per type (Items | Groups | Assets) so everything is visible at once (no long scroll) ----
 const COLS = {
   item: { label: 'Items', head: 'bg-slate-100 text-slate-600' },
   group: { label: 'Groups', head: 'bg-emerald-100 text-emerald-700' },
-  assembly: { label: 'Assemblies', head: 'bg-violet-100 text-violet-700' },
+  assembly: { label: 'Assets', head: 'bg-violet-100 text-violet-700' },
 };
 const presentKinds = computed(() => { const set = new Set(props.options.map(kindOf)); return ['item', 'group', 'assembly'].filter((k) => set.has(k)); });
 const useColumns = computed(() => presentKinds.value.length > 0 && props.options.every((o) => ['item', 'group', 'assembly'].includes(kindOf(o))));
@@ -56,7 +56,7 @@ const activeCols = computed(() => presentKinds.value.map((k) => ({ key: k, label
       />
     </div>
 
-    <!-- COLUMN VIEW: Items | Groups | Assemblies side by side, everything visible at once -->
+    <!-- COLUMN VIEW: Items | Groups | Assets side by side, everything visible at once -->
     <div v-if="open && useColumns && filtered.length" class="absolute z-50 mt-1 w-full min-w-[460px] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
       <div class="grid divide-x divide-slate-100" :style="{ gridTemplateColumns: 'repeat(' + activeCols.length + ', minmax(0,1fr))' }">
         <div v-for="col in activeCols" :key="col.key" class="min-w-0 flex flex-col">

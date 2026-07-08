@@ -295,7 +295,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
                 <tr>
                   <td class="px-4 py-2 text-slate-700">
                     <button v-if="l.kind==='group'" class="mr-1 text-slate-400" @click="l.expanded=!l.expanded">{{ l.expanded ? '▾' : '▸' }}</button>
-                    {{ l.name }}<Badge v-if="l.kind==='group'" tone="emerald" class="ml-1">group</Badge><Badge v-if="l.kind==='assembly'" tone="rose" class="ml-1 font-bold">◆ assembly</Badge>
+                    {{ l.name }}<Badge v-if="l.kind==='group'" tone="emerald" class="ml-1">group</Badge><Badge v-if="l.kind==='assembly'" tone="rose" class="ml-1 font-bold">◆ asset</Badge>
                   </td>
                   <td class="px-4 py-2"><select v-model="l.facility_id" class="h-8 px-2 rounded border border-slate-300 text-xs"><option v-for="f in store.facilities" :key="f.id" :value="f.id">{{ f.name }}</option></select></td>
                   <td class="px-4 py-2 text-right"><input v-model.number="l.qty" type="number" min="1" class="w-16 h-8 px-2 rounded border border-slate-300 text-right" /></td>
@@ -329,8 +329,8 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
 
         <!-- add items BELOW the list so the dropdown never covers what you've already added -->
         <div class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3">
-          <span class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1.5">+ Add an item, group, or assembly</span>
-          <SearchPicker multi :options="store.catalogShip" placeholder="Search items, groups, or assemblies…" @pick="onItemPick" />
+          <span class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1.5">+ Add an item, group, or asset</span>
+          <SearchPicker multi :options="store.catalogShip" placeholder="Search items, groups, or assets…" @pick="onItemPick" />
         </div>
 
         <!-- outbound landed -->

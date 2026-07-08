@@ -34,7 +34,7 @@ function actCat(text) {
   const t = (text || '').toLowerCase();
   if (t.includes('payment') || t.includes('po-') || t.includes('po ') || t.includes('deposit') || t.includes('purchase')) return { label: 'Purchase', tone: 'blue' };
   if (t.includes('shipment') || t.includes('shipped') || t.includes('so-') || t.includes('confirmed') || t.includes('combined') || t.includes('completed')) return { label: 'Sales', tone: 'emerald' };
-  if (t.includes('assembled') || t.includes('cart ') || t.includes('assembly')) return { label: 'Assembly', tone: 'violet' };
+  if (t.includes('assembled') || t.includes('cart ') || t.includes('assembly')) return { label: 'Asset', tone: 'violet' };
   if (t.includes('return') || t.includes('refurb')) return { label: 'Returns', tone: 'amber' };
   if (t.includes('asset') || t.includes('recovery')) return { label: 'Assets', tone: 'indigo' };
   if (t.includes('received') || t.includes('receipt') || t.includes('stock') || t.includes('restored')) return { label: 'Inventory', tone: 'slate' };
