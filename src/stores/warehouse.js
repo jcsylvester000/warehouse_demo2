@@ -48,6 +48,7 @@ function seed() {
   const db = {
     // sku counter drives numeric item numbers (numbers only, auto-generated)
     counters: { po: 190, so: 145, ro: 42, vbill: 0, cart: 192, ship: 0, asset: 2210, ret: 0, sku: 100011 },
+    migrations: {},
     vendors: [
       { id: 'v-medcarts', name: 'MedCarts Inc', email: 'orders@medcarts.com', pay_terms: 'Net 30', deposit_percent: 30 },
       { id: 'v-techsource', name: 'TechSource', email: 'sales@techsource.io', pay_terms: 'Net 15', deposit_percent: 0 },
@@ -87,10 +88,23 @@ function seed() {
       { id: 'f-river', name: 'Riverside Care', city: 'Red Bank, NJ', address: '40 River St, Red Bank, NJ 07701', regional_id: 'reg-tim', provider: 'Dr. Alan Pierce', care_companion: 'Nina Park', regional: 'Tim Boyd', floor_plan: 'riverside_floorplan.pdf', onboard_date: '2026-06-25', carts_needed: null, cart_shipment_date: null, status: 'Onboarding', notes: '', messages: [], attachments: ['riverside_floorplan.pdf'] },
       { id: 'f-oakwood', name: 'Oakwood Senior Living', city: 'Princeton, NJ', address: '55 Oak Ln, Princeton, NJ 08540', state: 'NJ', regional_id: 'reg-rosa', group: 'Eminent Healthcare', emr: 'Omnivers', provider: 'Dr. Sarah Kim', care_companion: 'Jordan Blake', regional: 'Rosa Diaz', ambassador: 'Rosa Diaz', floor_plan: null, onboard_date: '2026-07-10', carts_needed: 6, cart_shipment_date: '2026-07-12', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
       { id: 'f-summit', name: 'Summit Rehabilitation', city: 'Morristown, NJ', address: '210 Summit Ave, Morristown, NJ 07960', state: 'NJ', regional_id: 'reg-tim', group: 'Azure Healthcare Group', emr: 'Omnivers', provider: 'Elena Ruiz', care_companion: 'Marcus Bell', regional: 'Tim Boyd', ambassador: 'Tim Boyd', floor_plan: null, onboard_date: '2026-07-14', carts_needed: 9, cart_shipment_date: '2026-07-16', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-willow', name: 'Willowbrook Nursing Center', city: 'Edison, NJ', address: '220 Willow Ave, Edison, NJ 08817', state: 'NJ', regional_id: 'reg-marcus', group: 'Eminent Healthcare', emr: 'Omnivers', provider: 'Dr. Sara Lin', care_companion: 'Nadia Feldman', regional: 'Marcus Reid', ambassador: 'Marcus Reid', floor_plan: null, onboard_date: '2026-07-12', carts_needed: 8, cart_shipment_date: '2026-07-15', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-harbor', name: 'Harborview Rehabilitation', city: 'Jersey City, NJ', address: '12 Harbor St, Jersey City, NJ 07302', state: 'NJ', regional_id: 'reg-marcus', group: 'Eminent Healthcare', emr: 'Omnivers', provider: 'Aaron Feld', care_companion: 'Grace Okonkwo', regional: 'Marcus Reid', ambassador: 'Marcus Reid', floor_plan: null, onboard_date: '2026-07-13', carts_needed: 10, cart_shipment_date: '2026-07-16', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-crest', name: 'Crestwood Care Center', city: 'Yonkers, NY', address: '88 Crest Rd, Yonkers, NY 10701', state: 'NY', regional_id: 'reg-diana', group: 'Azure Healthcare Group', emr: 'Omnivers', provider: 'Dr. Paul Meyer', care_companion: 'Terrell Woods', regional: 'Diana Cole', ambassador: 'Diana Cole', floor_plan: null, onboard_date: '2026-07-14', carts_needed: 12, cart_shipment_date: '2026-07-18', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-park', name: 'Parkside Senior Living', city: 'Buffalo, NY', address: '305 Park Blvd, Buffalo, NY 14201', state: 'NY', regional_id: 'reg-diana', group: 'Azure Healthcare Group', emr: '-', provider: 'Naomi Klein', care_companion: 'Devon Marsh', regional: 'Diana Cole', ambassador: 'Diana Cole', floor_plan: null, onboard_date: '2026-07-17', carts_needed: 6, cart_shipment_date: '2026-07-20', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-iron', name: 'Ironwood Health & Rehab', city: 'Allentown, PA', address: '450 Iron St, Allentown, PA 18101', state: 'PA', regional_id: 'reg-frank', group: 'Avon Healthcare Services', emr: 'Omnivers', provider: 'Dr. Ruth Alvarez', care_companion: 'Bianca Rossi', regional: 'Frank Ortega', ambassador: 'Frank Ortega', floor_plan: null, onboard_date: '2026-07-15', carts_needed: 9, cart_shipment_date: '2026-07-19', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-laurel', name: 'Laurel Springs Nursing', city: 'Pittsburgh, PA', address: '77 Laurel Way, Pittsburgh, PA 15201', state: 'PA', regional_id: 'reg-frank', group: 'Avon Healthcare Services', emr: '-', provider: 'Victor Osei', care_companion: 'Hannah Bloom', regional: 'Frank Ortega', ambassador: 'Frank Ortega', floor_plan: null, onboard_date: '2026-07-18', carts_needed: 7, cart_shipment_date: '2026-07-22', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-beacon', name: 'Beacon Hill Care', city: 'Boston, MA', address: '19 Beacon St, Boston, MA 02108', state: 'MA', regional_id: 'reg-diana', group: 'Azure Healthcare Group', emr: 'Omnivers', provider: 'Dr. Cara Nolan', care_companion: 'Isaiah Grant', regional: 'Diana Cole', ambassador: 'Nechemia Blatter', floor_plan: null, onboard_date: '2026-07-20', carts_needed: 11, cart_shipment_date: '2026-07-24', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-grand', name: 'Grandview Rehabilitation', city: 'Detroit, MI', address: '640 Grand Ave, Detroit, MI 48201', state: 'MI', regional_id: 'reg-marcus', group: 'Avon Healthcare Services', emr: '-', provider: 'Dr. Leo Park', care_companion: 'Maria Santos', regional: 'Marcus Reid', ambassador: 'Marcus Reid', floor_plan: null, onboard_date: '2026-07-21', carts_needed: 5, cart_shipment_date: '2026-07-25', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-sunset', name: 'Sunset Palms Care', city: 'Miami, FL', address: '300 Palm Dr, Miami, FL 33101', state: 'FL', regional_id: 'reg-frank', group: 'Eminent Healthcare', emr: 'Omnivers', provider: 'Dr. Elena Cruz', care_companion: 'Andre Boone', regional: 'Frank Ortega', ambassador: 'Nathan Blatter', floor_plan: null, onboard_date: '2026-07-23', carts_needed: 8, cart_shipment_date: '2026-07-27', status: 'Onboarding', active: true, notes: '', messages: [], attachments: [] },
+      { id: 'f-fair', name: 'Fairfield Commons', city: 'Hartford, CT', address: '150 Fairfield Rd, Hartford, CT 06101', state: 'CT', regional_id: 'reg-diana', group: 'Azure Healthcare Group', emr: '-', provider: 'Dr. Omar Haddad', care_companion: 'Ruby Chen', regional: 'Diana Cole', ambassador: 'David Dachs', floor_plan: null, onboard_date: '2026-07-26', carts_needed: 6, cart_shipment_date: '2026-07-30', status: 'Planned', active: true, notes: '', messages: [], attachments: [] },
     ],
     regionals: [
       { id: 'reg-rosa', name: 'Rosa Diaz', area: 'NJ — North', email: 'rosa.diaz@carease.com', address: '200 North Office Pkwy, Newark, NJ 07102' },
       { id: 'reg-tim', name: 'Tim Boyd', area: 'NJ — South', email: 'tim.boyd@carease.com', address: '15 South Center Dr, Cherry Hill, NJ 08002' },
+      { id: 'reg-marcus', name: 'Marcus Reid', area: 'NJ — Central', email: 'marcus.reid@carease.com', address: '410 Central Plaza, Edison, NJ 08817' },
+      { id: 'reg-diana', name: 'Diana Cole', area: 'NY — Metro', email: 'diana.cole@carease.com', address: '77 Metro Tower, New York, NY 10001' },
+      { id: 'reg-frank', name: 'Frank Ortega', area: 'PA — East', email: 'frank.ortega@carease.com', address: '905 Liberty Blvd, Allentown, PA 18101' },
     ],
     facilityAssets: [
       { id: uid('fa'), facility_id: 'f-maple', item: 'Care Cart — Standard', asset_tag: 'CRT-A-0188', qty: 8, assigned: '2026-06-12', status: 'Active' },
@@ -114,6 +128,15 @@ function seed() {
       { id: 'u-malky', name: 'Malky Locker', role: 'Warehouse Manager', program: 'Warehouse', facility: 'All facilities', email: 'malky.locker@carease.com', address: '1 Warehouse Way, Lakewood, NJ 08701' },
       { id: 'u-jordan', name: 'Jordan Blake', role: 'Care Companion', title: 'Care Coordinator', program: 'APCM', facility: 'Oakwood Senior Living', facility_id: 'f-oakwood', email: 'jordan.blake@careasehealth.com', phone: '16095551027', address: '55 Oak Ln, Princeton, NJ 08540', active: true },
       { id: 'u-elena', name: 'Elena Ruiz', role: 'Provider', title: 'Nurse Practitioner', program: 'CoCM', facility: 'Summit Rehabilitation', facility_id: 'f-summit', email: 'elena.ruiz@careasehealth.com', phone: '19735550148', address: '210 Summit Ave, Morristown, NJ 07960', active: true },
+      { id: 'u-nadia', name: 'Nadia Feldman', role: 'Care Companion', title: 'Care Coordinator', program: 'APCM', facility: 'Willowbrook Nursing Center', facility_id: 'f-willow', email: 'nadia.feldman@careasehealth.com', phone: '17325550112', address: '18 Rosewood Ct, Edison, NJ 08817', active: true },
+      { id: 'u-terrell', name: 'Terrell Woods', role: 'Care Companion', title: 'Care Companion', program: 'APCM', facility: 'Crestwood Care Center', facility_id: 'f-crest', email: 'terrell.woods@careasehealth.com', phone: '19145550143', address: '62 Elm St, Yonkers, NY 10701', active: true },
+      { id: 'u-bianca', name: 'Bianca Rossi', role: 'Care Companion', title: 'Senior Care Companion', program: 'APCM', facility: 'Ironwood Health & Rehab', facility_id: 'f-iron', email: 'bianca.rossi@careasehealth.com', phone: '16105550178', address: '24 Maple Dr, Allentown, PA 18101', active: true },
+      { id: 'u-aaron', name: 'Aaron Feld', role: 'Provider', title: 'Physician', program: 'CoCM', facility: 'Harborview Rehabilitation', facility_id: 'f-harbor', email: 'aaron.feld@careasehealth.com', phone: '12015550166', address: '9 Hudson Ave, Jersey City, NJ 07302', active: true },
+      { id: 'u-naomi', name: 'Naomi Klein', role: 'Provider', title: 'Nurse Practitioner', program: 'CoCM', facility: 'Parkside Senior Living', facility_id: 'f-park', email: 'naomi.klein@careasehealth.com', phone: '17165550109', address: '411 Lakeview Rd, Buffalo, NY 14201', active: true },
+      { id: 'u-victor', name: 'Victor Osei', role: 'Provider', title: 'Physician Assistant', program: 'CoCM', facility: 'Laurel Springs Nursing', facility_id: 'f-laurel', email: 'victor.osei@careasehealth.com', phone: '14125550187', address: '55 Highland Ave, Pittsburgh, PA 15201', active: true },
+      { id: 'u-marcus', name: 'Marcus Reid', role: 'Regional Director', title: 'Regional Director', program: 'Regional', facility: 'NJ — Central', email: 'marcus.reid@carease.com', phone: '17325550100', address: '410 Central Plaza, Edison, NJ 08817', active: true },
+      { id: 'u-diana', name: 'Diana Cole', role: 'Regional Director', title: 'Regional Director', program: 'Regional', facility: 'NY — Metro', email: 'diana.cole@carease.com', phone: '12125550100', address: '77 Metro Tower, New York, NY 10001', active: true },
+      { id: 'u-frank', name: 'Frank Ortega', role: 'Regional Director', title: 'Regional Director', program: 'Regional', facility: 'PA — East', email: 'frank.ortega@carease.com', phone: '16105550100', address: '905 Liberty Blvd, Allentown, PA 18101', active: true },
     ],
     tickets: [
       { id: '#4821', priority: 'High', subject: 'BOL missing — Maple SNF receipt', kind: 'assigned' },
@@ -759,6 +782,24 @@ export const useWarehouseStore = defineStore('warehouse', {
     removeVendor(id) { if ((this.items || []).some((i) => i.vendor_id === id) || (this.groups || []).some((g) => g.vendor_id === id)) return { error: 'This vendor is linked to items or groups — reassign them first.' }; const i = (this.vendors || []).findIndex((v) => v.id === id); if (i < 0) return { error: 'Vendor not found.' }; const removed = this.vendors.splice(i, 1)[0]; this.logActivity('Vendor removed: ' + (removed ? removed.name : id)); return { ok: true }; },
     toggleUserActive(id) { const u = (this.users || []).find((x) => x.id === id); if (u) { u.active = u.active === false; this.logActivity('User ' + u.name + (u.active ? ' activated' : ' deactivated')); } },
     toggleFacilityActive(id) { const f = (this.facilities || []).find((x) => x.id === id); if (f) { f.active = f.active === false; this.logActivity('Facility ' + f.name + (f.active ? ' activated' : ' deactivated')); } },
+    // One-time: ensure the mock directory (regionals/facilities/users) exists even in a database saved before they were added.
+    // Upserts by id (never overwrites an existing record), runs once (flagged), so later edits/deletes are respected.
+    applyDirectorySeed() {
+      this.migrations = this.migrations || {};
+      if (this.migrations.dirV1) return 0;
+      let fresh; try { fresh = seed(); } catch (e) { return 0; }
+      const RID = ['reg-marcus', 'reg-diana', 'reg-frank'];
+      const FID = ['f-oakwood', 'f-summit', 'f-willow', 'f-harbor', 'f-crest', 'f-park', 'f-iron', 'f-laurel', 'f-beacon', 'f-grand', 'f-sunset', 'f-fair'];
+      const UID = ['u-jordan', 'u-elena', 'u-nadia', 'u-terrell', 'u-bianca', 'u-aaron', 'u-naomi', 'u-victor', 'u-marcus', 'u-diana', 'u-frank'];
+      let n = 0;
+      const up = (arr, freshArr, ids) => { ids.forEach((id) => { if (!arr.some((x) => x.id === id)) { const r = (freshArr || []).find((x) => x.id === id); if (r) { arr.push(JSON.parse(JSON.stringify(r))); n++; } } }); };
+      up(this.regionals = this.regionals || [], fresh.regionals, RID);
+      up(this.facilities = this.facilities || [], fresh.facilities, FID);
+      up(this.users = this.users || [], fresh.users, UID);
+      this.migrations.dirV1 = true;
+      if (n) this.logActivity('Directory seed applied — added ' + n + ' mock user/facility record(s)');
+      return n;
+    },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },
