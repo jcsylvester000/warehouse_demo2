@@ -17,6 +17,7 @@ export function useBackendSync(store) {
         store.$patch(state); // backend is the source of truth
         store.applyDirectorySeed(); // ensure mock directory exists even in a pre-existing saved workspace
         store.applyScenarioSeed(); // ensure testability scenario data exists (combine, backorders, partial receipts)
+        store.applyScenarioSeedP2(); // P2 testability data (bins, tickets, employee role, employee-held & terminated assets)
       }
       version = v || 0;
       ready = true;

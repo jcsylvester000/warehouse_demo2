@@ -868,6 +868,73 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (n) this.logActivity('Scenario seed applied — added ' + n + ' test record(s) for Combine, back orders, partial receipts, and returns');
       return n;
     },
+    // P2 scenario seed (testability): bin locations + more low-stock, richer tickets (assignee/status/notes),
+    // a derived Warehouse Employee role with a couple of denied grants, and employee-held + terminated assets.
+    // Idempotent + non-overwriting, guarded by migrations.scenarioV2.
+    applyScenarioSeedP2() {
+      this.migrations = this.migrations || {};
+      if (this.migrations.scenarioV2) return 0;
+      let n = 0;
+
+      // MD-06 — give real items a bin location (were all blank) + push 2 more items below threshold.
+      const bins = { 'i-cart': 'A1-03', 'i-laptop': 'B2-11', 'i-tab': 'B1-07', 'i-basket': 'C3-02', 'i-mount': 'C3-05', 'i-mdm': 'D1-01' };
+      (this.items || []).forEach((it) => { const blank = !it.bin_location || it.bin_location === '—'; if (bins[it.id] && blank) { it.bin_location = bins[it.id]; n++; } });
+      // drop a couple below threshold so Low-stock has variety (only if currently above)
+      const lowById = { 'i-basket': 2, 'i-mount': 1 };
+      (this.items || []).forEach((it) => { if (lowById[it.id] != null && !it._p2low) { it.on_hand = lowById[it.id]; it._p2low = true; n++; } });
+
+      // MD-07 — enrich tickets with assignee + status + notes (were title + severity only), and add 1 resolved + 1 in-progress.
+      this.tickets = this.tickets || [];
+      this.tickets.forEach((t) => {
+        if (t.assignee === undefined) { t.assignee = 'Malky Locker'; n++; }
+        if (t.status === undefined) { t.status = t.kind === 'system' ? 'Resolved' : 'Open'; }
+        if (t.notes === undefined) { t.notes = []; }
+      });
+      const seedTickets = [
+        { id: '#4901', priority: 'Medium', subject: 'Cart color mismatch — Summit Rehab', kind: 'assigned', assignee: 'Malky Locker', status: 'In progress', notes: [{ by: 'Malky Locker', at: TODAY, text: 'Confirmed 2 carts shipped in black instead of gray; awaiting facility OK.' }] },
+        { id: '#4902', priority: 'Low', subject: 'Update MDM enrollment batch', kind: 'system', assignee: 'System', status: 'Resolved', notes: [{ by: 'System', at: TODAY, text: 'Batch re-run completed.' }] },
+      ];
+      seedTickets.forEach((t) => { if (!this.tickets.some((x) => x.id === t.id)) { this.tickets.push(t); n++; } });
+
+      // MD-08 — derive a Warehouse Employee role and deny two sensitive capabilities on it, so permission
+      // effects can be tested against a non-all-yes role.
+      this.roles = this.roles || [];
+      if (!this.roles.some((r) => r.id === 'warehouse-employee')) {
+        this.roles.push({ id: 'warehouse-employee', name: 'Warehouse Employee', model_user: null, derived_from: 'warehouse-manager', renamed_from: null, custom: true });
+        this.employeeRoleCreated = true;
+        n++;
+      }
+      // mark two capabilities as not granted to the employee role (data the Roles matrix can surface)
+      this.capabilities = this.capabilities || [];
+      const denyLabels = ['Add / remove users within warehouse', 'Delete a facility from the pipeline', 'Admin dashboard access'];
+      this.capabilities.forEach((c) => {
+        if (c.employee_grant === undefined) c.employee_grant = c.employee ? 'yes' : 'no';
+        if (denyLabels.some((d) => (c.label || '').toLowerCase() === d.toLowerCase())) {
+          if (c.employee_grant !== 'no') { c.employee_grant = 'no'; n++; }
+        }
+      });
+
+      // MD-10 — assign 2 laptops to active employees + 1 terminated employee still holding a laptop
+      // (populates the User-Assets filter and the Returns — Terminated recovery flow).
+      this.assets = this.assets || [];
+      const nextAsId = () => { let m = 0; (this.assets || []).forEach((a) => { const num = parseInt(String(a.id).replace(/[^0-9]/g, ''), 10); if (num > m) m = num; }); return 'as-' + (m + 1); };
+      const seedAssets = [
+        { id: 'seed-as-lt1', klass: 'laptop', code: 'LT-8001', status: 'Assigned', holder_type: 'employee', holder: 'Carl Chen', emp_state: 'NJ', condition: 'New', received: true, brand: 'Dell', model: 'Latitude 5400', serial: 'SN-8001', clicrite_id: 'CLK-8001' },
+        { id: 'seed-as-lt2', klass: 'laptop', code: 'LT-8002', status: 'Assigned', holder_type: 'employee', holder: 'Priya Tan', emp_state: 'NJ', condition: 'New', received: false, brand: 'HP', model: 'EliteBook 840', serial: 'SN-8002', clicrite_id: 'CLK-8002' },
+        { id: 'seed-as-lt3', klass: 'laptop', code: 'LT-8003', status: 'Assigned', holder_type: 'employee', holder: 'Omar Vance', emp_state: 'NJ', condition: 'Used', received: true, terminated: true, brand: 'Dell', model: 'Latitude 5400', serial: 'SN-8003', clicrite_id: 'CLK-8003' },
+      ];
+      seedAssets.forEach((a) => { if (!this.assets.some((x) => x.id === a.id || x.code === a.code)) { this.assets.push(a); n++; } });
+      // register the terminated employee so assetsToRecover picks up Omar's laptop
+      this.terminatedEmployees = this.terminatedEmployees || [];
+      if (!this.terminatedEmployees.some((t) => (t.name || '').toLowerCase() === 'omar vance')) {
+        this.terminatedEmployees.push({ id: 'te-seed-1', name: 'Omar Vance', state: 'NJ' });
+        n++;
+      }
+
+      this.migrations.scenarioV2 = true;
+      if (n) this.logActivity('Scenario seed P2 applied — added ' + n + ' record(s): bins, tickets, Warehouse Employee role, employee-held & terminated assets');
+      return n;
+    },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },
