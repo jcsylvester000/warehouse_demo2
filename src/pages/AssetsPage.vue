@@ -83,11 +83,11 @@ const showTypes = ref(false);
 const typeForm = reactive({ id: null, label: '', prefix: '', assign: 'employee', cols: [], source: 'none' });
 function resetTypeForm() { Object.assign(typeForm, { id: null, label: '', prefix: '', assign: 'employee', cols: [], source: 'none' }); }
 function openTypes() { resetTypeForm(); showTypes.value = true; }
-function editType(c) { Object.assign(typeForm, { id: c.id, label: c.label, prefix: c.prefix || '', assign: c.assign || 'employee', cols: (c.cols || []).map((col) => ({ key: col[0], label: col[1], stage: col[2] || 'build' })), source: (c.source_kind && c.source_id) ? (c.source_kind + ':' + c.source_id) : 'none' }); }
-function addCol() { typeForm.cols.push({ key: '', label: '', stage: 'build' }); }
+function editType(c) { Object.assign(typeForm, { id: c.id, label: c.label, prefix: c.prefix || '', assign: c.assign || 'employee', cols: (c.cols || []).map((col) => ({ key: col[0], label: col[1], stage: col[2] || 'build', choices: Array.isArray(col[3]) ? col[3].join(', ') : '' })), source: (c.source_kind && c.source_id) ? (c.source_kind + ':' + c.source_id) : 'none' }); }
+function addCol() { typeForm.cols.push({ key: '', label: '', stage: 'build', choices: '' }); }
 function rmCol(i) { typeForm.cols.splice(i, 1); }
 function saveType() {
-  const cols = typeForm.cols.filter((c) => String(c.label).trim()).map((c) => { const key = (c.key || c.label).toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); return c.stage === 'shipout' ? [key, c.label.trim(), 'shipout'] : [key, c.label.trim()]; });
+  const cols = typeForm.cols.filter((c) => String(c.label).trim()).map((c) => { const key = (c.key || c.label).toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); const stage = c.stage === 'shipout' ? 'shipout' : 'build'; const choices = String(c.choices || '').split(',').map((x) => x.trim()).filter(Boolean); if (choices.length) return [key, c.label.trim(), stage, choices]; return stage === 'shipout' ? [key, c.label.trim(), 'shipout'] : [key, c.label.trim()]; });
   const sp = String(typeForm.source || 'none').split(':');
   const payload = { label: typeForm.label, prefix: typeForm.prefix, assign: typeForm.assign, cols, source_kind: sp[0] === 'none' ? 'none' : sp[0], source_id: sp[0] === 'none' ? '' : sp.slice(1).join(':') };
   const r = typeForm.id ? store.updateAssetType(typeForm.id, payload) : store.addAssetType(payload);
@@ -363,13 +363,13 @@ const chips = computed(() => [
         <div>
           <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{{ meta.label }} details <span class="text-slate-400 normal-case font-normal">· entered when built</span></div>
           <div class="grid grid-cols-2 gap-3">
-            <label v-for="c in store.assetTypeBuildCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><input v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label v-for="c in store.assetTypeBuildCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><select v-if="c[3] && c[3].length" v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-white"><option value="">— choose —</option><option v-for="opt in c[3]" :key="opt" :value="opt">{{ opt }}</option></select><input v-else v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
         </div>
         <div v-if="store.assetTypeShipoutCols(tab).length">
           <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Ship-out details <span class="text-slate-400 normal-case font-normal">· captured when it ships to its holder</span></div>
           <div class="grid grid-cols-2 gap-3">
-            <label v-for="c in store.assetTypeShipoutCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><input v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+            <label v-for="c in store.assetTypeShipoutCols(tab)" :key="c[0]" class="text-sm"><span class="block text-slate-600 mb-1">{{ c[1] }}</span><select v-if="c[3] && c[3].length" v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-white"><option value="">— choose —</option><option v-for="opt in c[3]" :key="opt" :value="opt">{{ opt }}</option></select><input v-else v-model="form.fields[c[0]]" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
           </div>
         </div>
       </div>
@@ -478,10 +478,12 @@ const chips = computed(() => [
           <div class="space-y-1.5 max-h-[26vh] overflow-y-auto">
             <div v-for="(col, i) in typeForm.cols" :key="i" class="flex items-center gap-2">
               <input v-model="col.label" placeholder="Column name" class="flex-1 h-8 px-2 rounded border border-slate-300 text-sm" />
+              <input v-model="col.choices" placeholder="Choices (optional, comma-sep)" class="flex-1 h-8 px-2 rounded border border-slate-300 text-sm" title="Leave blank for free text; add comma-separated values to make this column a dropdown." />
               <select v-model="col.stage" class="h-8 px-1.5 rounded border border-slate-300 text-xs"><option value="build">At build</option><option value="shipout">At ship-out</option></select>
               <button class="text-slate-400 hover:text-rose-600 text-lg leading-none" @click="rmCol(i)">&times;</button>
             </div>
             <p v-if="!typeForm.cols.length" class="text-[11px] text-slate-400 py-2">No columns yet — add the fields this asset needs (brand, serial, …).</p>
+            <p v-else class="text-[11px] text-slate-400 py-1">Tip: add comma-separated <b>Choices</b> to turn a column into a dropdown; leave blank for free text.</p>
           </div>
           <div class="flex justify-end gap-2 mt-3"><Btn v-if="typeForm.id" variant="secondary" size="sm" @click="resetTypeForm">Cancel edit</Btn><Btn size="sm" @click="saveType">{{ typeForm.id ? 'Save type' : 'Add type' }}</Btn></div>
         </div>
