@@ -806,6 +806,68 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (n) this.logActivity('Directory seed applied — added ' + n + ' mock user/facility record(s)');
       return n;
     },
+    // Scenario seed (testability): append OPEN sales orders (for Combine + backorder), multi-vendor POs
+    // in mixed states (partial receive + deposit rules), an in-transit return, and extra built carts.
+    // Idempotent + non-overwriting, guarded by migrations.scenarioV1. Uses store actions where possible
+    // so object shapes always match the app.
+    applyScenarioSeed() {
+      this.migrations = this.migrations || {};
+      if (this.migrations.scenarioV1) return 0;
+      let n = 0;
+      const has = (arr, id) => (arr || []).some((x) => x.id === id);
+
+      // MD-09 — build a few carts into the warehouse so Combine/partial-ship have real units to pick.
+      try {
+        const wantCarts = [
+          { id: 'seed-cart-vs8-1', assembly_id: 'asm-vs8', code: 'VS8-9001' },
+          { id: 'seed-cart-vs8-2', assembly_id: 'asm-vs8', code: 'VS8-9002' },
+          { id: 'seed-cart-vs8-3', assembly_id: 'asm-vs8', code: 'VS8-9003' },
+          { id: 'seed-cart-edan-1', assembly_id: 'asm-edan', code: 'EDAN-9001' },
+          { id: 'seed-cart-edan-2', assembly_id: 'asm-edan', code: 'EDAN-9002' },
+        ];
+        const toBuild = wantCarts.filter((c) => !(this.carts || []).some((x) => x.code === c.code));
+        if (toBuild.length && typeof this.buildAssembliesBatch === 'function') {
+          this.buildAssembliesBatch(toBuild.map((c) => ({ assembly_id: c.assembly_id, code: c.code, cart_color: 'Black', tablet_number: '', fields: {}, condition: 'New' })));
+          n += toBuild.length;
+        }
+      } catch (e) { /* ignore build issues; carts are best-effort */ }
+
+      // MD-01 — two OPEN sales orders to the SAME destination (Maple SNF) + one to a different address (Bayview),
+      // so Combine (same-dest) and its guard (different-dest) can be exercised. MD-03 — non-zero freight + priced lines.
+      const mapleAddr = 'Maple SNF · 120 Maple Ave, Lakewood, NJ 08701';
+      const bayAddr = 'Bayview Center · 88 Bay Blvd, Toms River, NJ 08753';
+      const soLine = (qty) => ({ kind: 'assembly', assembly_id: 'asm-vs8', name: 'VS8 cart', facility_id: 'f-maple', qty, qty_shipped: 0, shipped_cost_total: 0, shipped_units: [] });
+      const seedSOs = [
+        { id: 'seed-so-combineA', so_number: 'SO-2026-0301', recipient_type: 'facility', recipient_id: 'f-maple', ship_to_type: 'facility', regional_id: null, facility_id: 'f-maple', order_date: TODAY, expected_date: TODAY, delivery_method: 'Freight', shipping_address: mapleAddr, shipping_cost: 120, landed_costs: [], status: 'in_progress', notes: 'Seed: open order to Maple (combine candidate A).', backorder_of: null, groups: [], attachments: [], created_by: 'Malky Locker', created_at: TODAY, items: [soLine(1)] },
+        { id: 'seed-so-combineB', so_number: 'SO-2026-0302', recipient_type: 'facility', recipient_id: 'f-maple', ship_to_type: 'facility', regional_id: null, facility_id: 'f-maple', order_date: TODAY, expected_date: TODAY, delivery_method: 'Freight', shipping_address: mapleAddr, shipping_cost: 95, landed_costs: [], status: 'in_progress', notes: 'Seed: open order to Maple (combine candidate B, same address).', backorder_of: null, groups: [], attachments: [], created_by: 'Malky Locker', created_at: TODAY, items: [soLine(1)] },
+        { id: 'seed-so-other', so_number: 'SO-2026-0303', recipient_type: 'facility', recipient_id: 'f-bayview', ship_to_type: 'facility', regional_id: null, facility_id: 'f-bayview', order_date: TODAY, expected_date: TODAY, delivery_method: 'Freight', shipping_address: bayAddr, shipping_cost: 150, landed_costs: [], status: 'in_progress', notes: 'Seed: open order to Bayview (different address — combine should be blocked with the Maple pair).', backorder_of: null, groups: [], attachments: [], created_by: 'Malky Locker', created_at: TODAY, items: [{ kind: 'assembly', assembly_id: 'asm-vs8', name: 'VS8 cart', facility_id: 'f-bayview', qty: 1, qty_shipped: 0, shipped_cost_total: 0, shipped_units: [] }] },
+        // MD-02 — over-ordered SO (qty far exceeds built units) to exercise partial-ship -> back order.
+        { id: 'seed-so-backorder', so_number: 'SO-2026-0304', recipient_type: 'facility', recipient_id: 'f-maple', ship_to_type: 'facility', regional_id: null, facility_id: 'f-maple', order_date: TODAY, expected_date: TODAY, delivery_method: 'Freight', shipping_address: mapleAddr, shipping_cost: 120, landed_costs: [], status: 'in_progress', notes: 'Seed: ordered 8 VS8 carts (more than are built) — ship what is available and a back order (…BC) is created for the rest.', backorder_of: null, groups: [], attachments: [], created_by: 'Malky Locker', created_at: TODAY, items: [{ kind: 'assembly', assembly_id: 'asm-vs8', name: 'VS8 cart', facility_id: 'f-maple', qty: 8, qty_shipped: 0, shipped_cost_total: 0, shipped_units: [] }] },
+      ];
+      this.salesOrders = this.salesOrders || [];
+      seedSOs.forEach((so) => { if (!has(this.salesOrders, so.id)) { this.salesOrders.unshift(so); n++; } });
+
+      // MD-04 — multi-vendor POs in mixed states so partial-receive + vendor deposit rules are demoable.
+      const seedPOs = [
+        { id: 'seed-po-partial', po_number: 'PO-2026-0301', vendor_id: 'v-techsource', multi_vendor: false, order_date: TODAY, expected_date: TODAY, status: 'partial', progress: 'Shipping', sent: null, notes: 'Seed: TechSource (Net 15, 0% deposit) — half received, remainder open (partial-receive demo).', landed_costs: [], payments: [], deposit: 0, items: [{ id: uid('pol'), vendor_item_id: 'i-laptop', name: 'Dell Latitude Laptop', vendor_id: 'v-techsource', qty: 6, qty_received: 3, unit_cost: 920 }] },
+        { id: 'seed-po-open', po_number: 'PO-2026-0302', vendor_id: 'v-basketco', multi_vendor: false, order_date: TODAY, expected_date: TODAY, status: 'open', progress: 'Sent', sent: TODAY, notes: 'Seed: BasketCo (Net 30) — sent, nothing received yet.', landed_costs: [], payments: [], deposit: 0, items: [{ id: uid('pol'), vendor_item_id: 'i-basket', name: 'Supply Basket', vendor_id: 'v-basketco', qty: 12, qty_received: 0, unit_cost: 45 }] },
+        { id: 'seed-po-medcarts', po_number: 'PO-2026-0303', vendor_id: 'v-medcarts', multi_vendor: false, order_date: TODAY, expected_date: TODAY, status: 'open', progress: 'Not started', sent: null, notes: 'Seed: MedCarts (Net 30, 30% deposit) — deposit rule demo.', landed_costs: [], payments: [], deposit: 0, items: [{ id: uid('pol'), vendor_item_id: 'i-cart', name: 'Care Cart — Standard', vendor_id: 'v-medcarts', qty: 5, qty_received: 0, unit_cost: 640 }] },
+      ];
+      this.purchaseOrders = this.purchaseOrders || [];
+      seedPOs.forEach((po) => { if (!has(this.purchaseOrders, po.id)) { this.purchaseOrders.push(po); n++; } });
+
+      // MD-05 — an in-transit facility return (mid-lifecycle) so arrival-confirm + make-whole can be tested.
+      try {
+        if (!has(this.returns || [], 'seed-ret-transit') && typeof this.startAssetReturn === 'function') {
+          const ret = this.startAssetReturn({ source_type: 'facility', source_id: 'f-oakwood', so_ref: '', assets: [{ key: 'seed-ret-a1', kind: 'cart', code: 'RET-SEED-01', name: 'VS8 cart', book_cost: 1200 }] });
+          if (ret) { ret.id = 'seed-ret-transit'; n++; }
+        }
+      } catch (e) { /* ignore */ }
+
+      this.migrations.scenarioV1 = true;
+      if (n) this.logActivity('Scenario seed applied — added ' + n + ' test record(s) for Combine, back orders, partial receipts, and returns');
+      return n;
+    },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },
