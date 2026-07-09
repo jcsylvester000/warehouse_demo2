@@ -231,7 +231,7 @@ const chips = computed(() => [
         <Btn variant="secondary" size="sm" @click="openTypes">Manage asset types</Btn>
         <Btn variant="secondary" size="sm" @click="openImport">Import</Btn>
         <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Build {{ meta.label.replace(/s$/, '') }}</Btn>
-        <span v-else class="text-xs text-slate-400 self-center">Carts are built in <span class="font-semibold text-slate-500">Inventory</span></span>
+        <span v-else class="text-xs text-slate-400 self-center">Build carts with <span class="font-semibold text-slate-500">+ Build asset</span> above · cart recipes live in Inventory</span>
       </div>
 
       <div class="overflow-x-auto">
