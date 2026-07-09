@@ -79,26 +79,26 @@ function onImage(e, form) { const f = e.target.files && e.target.files[0]; if (!
 function saveAdd() {
   if (addKind.value === 'item') {
     if (!itemForm.name.trim()) return toast.error('Item name is required.');
-    if (itemForm.id) { store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, assembly_only: itemForm.assembly_only, image: itemForm.image }); toast.success('Item updated.'); }
-    else { const it = store.addItem(itemForm); toast.success('Item ' + it.sku + ' added.'); }
+    if (itemForm.id) { const r = store.updateItem(itemForm.id, { name: itemForm.name, vendor_id: itemForm.vendor_id, item_type_id: itemForm.item_type_id, cost: Number(itemForm.cost) || 0, threshold: Number(itemForm.threshold) || 0, bin_location: itemForm.bin_location, is_active: itemForm.is_active, assembly_only: itemForm.assembly_only, image: itemForm.image }); if (r && r.error) return toast.error(r.error); toast.success('Item updated.'); }
+    else { const it = store.addItem(itemForm); if (it && it.error) return toast.error(it.error); toast.success('Item ' + it.sku + ' added.'); }
   } else if (addKind.value === 'group') {
     if (!groupForm.name.trim() || !groupForm.members.length) return toast.error('Group name and at least one member are required.');
     const members = JSON.parse(JSON.stringify(groupForm.members));
-    if (groupForm.id) { store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); toast.success('Group updated.'); }
-    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); toast.success('Group ' + g.sku + ' added (its own item).'); }
+    if (groupForm.id) { const r = store.updateGroup(groupForm.id, { name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); if (r && r.error) return toast.error(r.error); toast.success('Group updated.'); }
+    else { const g = store.addGroup({ name: groupForm.name, description: groupForm.description, vendor_id: groupForm.vendor_id, assembly_only: groupForm.assembly_only, members, image: groupForm.image }); if (g && g.error) return toast.error(g.error); toast.success('Group ' + g.sku + ' added (its own item).'); }
   } else {
     if (asmForm.assembly_kind === 'single') {
       if (!asmForm.name.trim() || !asmForm.source_item_id) return toast.error('Assembly name and a source item are required.');
       const fields = asmForm.fields.map((f) => String(f).trim()).filter(Boolean);
       const payload = { name: asmForm.name, assembly_kind: 'single', source_item_id: asmForm.source_item_id, fields, composition: [], asset_defaults: {}, assembly_type_id: '' };
-      if (asmForm.id) { store.updateAssemblyDef(asmForm.id, payload); toast.success('Assembly updated.'); }
-      else { const a = store.addAssemblyDef(payload); toast.success('Assembly ' + a.sku + ' defined.'); }
+      if (asmForm.id) { const r = store.updateAssemblyDef(asmForm.id, payload); if (r && r.error) return toast.error(r.error); toast.success('Assembly updated.'); }
+      else { const a = store.addAssemblyDef(payload); if (a && a.error) return toast.error(a.error); toast.success('Assembly ' + a.sku + ' defined.'); }
     } else {
       if (!asmForm.name.trim() || !asmForm.composition.length) return toast.error('Assembly name and at least one part are required.');
       const composition = JSON.parse(JSON.stringify(asmForm.composition));
       const asset_defaults = JSON.parse(JSON.stringify(asmForm.asset_defaults));
-      if (asmForm.id) { store.updateAssemblyDef(asmForm.id, { name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly updated.'); }
-      else { const a = store.addAssemblyDef({ name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); toast.success('Assembly ' + a.sku + ' defined.'); }
+      if (asmForm.id) { const r = store.updateAssemblyDef(asmForm.id, { name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); if (r && r.error) return toast.error(r.error); toast.success('Assembly updated.'); }
+      else { const a = store.addAssemblyDef({ name: asmForm.name, assembly_kind: 'cart', assembly_type_id: asmForm.assembly_type_id, composition, asset_defaults }); if (a && a.error) return toast.error(a.error); toast.success('Assembly ' + a.sku + ' defined.'); }
     }
   }
   showAdd.value = false;

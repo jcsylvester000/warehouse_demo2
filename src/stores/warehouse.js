@@ -541,6 +541,7 @@ export const useWarehouseStore = defineStore('warehouse', {
       return (s.facilities || []).filter((f) => ids.has(f.id));
     },
     regionalById: (s) => (id) => s.regionals.find((r) => r.id === id),
+    nameTakenInCatalog(s) { return (name, exceptId) => { const nm = String(name || '').trim().toLowerCase(); if (!nm) return false; const hit = (arr) => (arr || []).some((x) => x.id !== exceptId && (x.name || '').trim().toLowerCase() === nm); return hit(s.items) || hit(s.groups); }; },
     userById: (s) => (id) => s.users.find((u) => u.id === id),
     providerList: (s) => s.users.filter((u) => u.role === 'Provider'),
     employeeList: (s) => s.users.filter((u) => u.role !== 'Regional Director'),
@@ -770,21 +771,24 @@ export const useWarehouseStore = defineStore('warehouse', {
 
     // ---- Inventory items / groups ----
     addItem({ name, vendor_id, item_type_id, cost, qty_onhand, threshold, bin_location, is_active, assembly_only, image }) {
+      const _nm = String(name || '').trim();
+      if (!_nm) return { error: 'An item name is required.' };
+      if (this.nameTakenInCatalog(_nm, null)) return { error: 'An item or group named "' + _nm + '" already exists — names must be unique.' };
       const q = Number(qty_onhand) || 0;
       const it = { id: uid('i'), sku: this.nextSku(), name, vendor_id: vendor_id || '', item_type_id: item_type_id || '', cost: Number(cost) || 0, threshold: Number(threshold) || 0, bin_location: bin_location || '', is_active: is_active !== false, assembly_only: !!assembly_only, image: image || '', is_tracked_asset: false, lots: [] };
       if (q > 0) it.lots.push({ id: uid('lot'), qty: q, unit_cost: Number(cost) || 0, landed: 0, received_at: TODAY, ref: 'opening' });
       it.qty_onhand = q; it.qty_available = q; this.items.unshift(it); return it;
     },
-    updateItem(id, patch) { const it = this.itemById(id); if (it) Object.assign(it, patch); },
+    updateItem(id, patch) { const it = this.itemById(id); if (!it) return; if (patch && patch.name != null) { const nm = String(patch.name).trim(); if (nm && this.nameTakenInCatalog(nm, id)) return { error: 'An item or group named "' + nm + '" already exists — names must be unique.' }; } Object.assign(it, patch); },
     deactivateItem(id) { const it = this.itemById(id); if (it) it.is_active = false; const g = this.groupById(id); if (g) g.is_active = false; },
-    addGroup({ name, description, members, assembly_only, vendor_id, image }) { const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', vendor_id: vendor_id || '', image: image || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
-    updateGroup(id, patch) { const g = this.groupById(id); if (g) Object.assign(g, patch); },
+    addGroup({ name, description, members, assembly_only, vendor_id, image }) { const _nm = String(name || '').trim(); if (!_nm) return { error: 'A group name is required.' }; if (this.nameTakenInCatalog(_nm, null)) return { error: 'An item or group named "' + _nm + '" already exists — names must be unique.' }; const g = { id: uid('g'), sku: this.nextSku(), name, description: description || '', vendor_id: vendor_id || '', image: image || '', is_active: true, is_group: true, assembly_only: !!assembly_only, members: members || [] }; this.groups.unshift(g); return g; },
+    updateGroup(id, patch) { const g = this.groupById(id); if (!g) return; if (patch && patch.name != null) { const nm = String(patch.name).trim(); if (nm && this.nameTakenInCatalog(nm, id)) return { error: 'An item or group named "' + nm + '" already exists — names must be unique.' }; } Object.assign(g, patch); },
 
     // ---- Purchase Orders ----
     nextPoNumber() { this.counters.po += 1; return 'PO-2026-' + String(this.counters.po).padStart(4, '0'); },
     nextSoNumber() { this.counters.so += 1; return 'SO-2026-' + String(this.counters.so).padStart(4, '0'); },
     addVendor({ name, email, phone, contact, address, pay_terms, deposit_percent }) { const nm = String(name || '').trim(); if (!nm) return { error: 'A vendor name is required.' }; if ((this.vendors || []).some((x) => (x.name || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'A vendor named "' + nm + '" already exists.' }; const v = { id: uid('v'), name: nm, email: email || '', phone: phone || '', contact: contact || '', address: address || '', pay_terms: pay_terms || 'Net 30', deposit_percent: Number(deposit_percent) || 0 }; this.vendors.push(v); this.logActivity('Vendor added: ' + nm); return v; },
-    updateVendor(id, patch) { const v = this.vendors.find((x) => x.id === id); if (v) Object.assign(v, patch.deposit_percent != null ? { ...patch, deposit_percent: Number(patch.deposit_percent) || 0 } : patch); return v; }, // V4 PO-4: edit vendor terms
+    updateVendor(id, patch) { const v = this.vendors.find((x) => x.id === id); if (!v) return; if (patch && patch.name != null) { const nm = String(patch.name).trim(); if (nm && (this.vendors || []).some((x) => x.id !== id && (x.name || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'A vendor named "' + nm + '" already exists — names must be unique.' }; } Object.assign(v, patch.deposit_percent != null ? { ...patch, deposit_percent: Number(patch.deposit_percent) || 0 } : patch); return v; }, // V4 PO-4: edit vendor terms
     removeVendor(id) { if ((this.items || []).some((i) => i.vendor_id === id) || (this.groups || []).some((g) => g.vendor_id === id)) return { error: 'This vendor is linked to items or groups — reassign them first.' }; const i = (this.vendors || []).findIndex((v) => v.id === id); if (i < 0) return { error: 'Vendor not found.' }; const removed = this.vendors.splice(i, 1)[0]; this.logActivity('Vendor removed: ' + (removed ? removed.name : id)); return { ok: true }; },
     toggleUserActive(id) { const u = (this.users || []).find((x) => x.id === id); if (u) { u.active = u.active === false; this.logActivity('User ' + u.name + (u.active ? ' activated' : ' deactivated')); } },
     toggleFacilityActive(id) { const f = (this.facilities || []).find((x) => x.id === id); if (f) { f.active = f.active === false; this.logActivity('Facility ' + f.name + (f.active ? ' activated' : ' deactivated')); } },
@@ -1404,10 +1408,12 @@ export const useWarehouseStore = defineStore('warehouse', {
 
     /* ---- V4 Assemblies (Single / Group / Assembly model) ---- */
     addAssemblyDef({ name, assembly_kind, source_item_id, assembly_type_id, composition, asset_defaults, fields }) {
+      const _nm = String(name || '').trim();
+      if (_nm && (this.assemblies || []).some((x) => (x.name || '').trim().toLowerCase() === _nm.toLowerCase())) return { error: 'A cart type / assembly named "' + _nm + '" already exists — names must be unique.' };
       const a = { id: uid('asm'), sku: this.nextSku(), name: name || 'New Assembly', assembly_kind: assembly_kind || 'cart', source_item_id: source_item_id || '', assembly_type_id: assembly_type_id || '', composition: composition || [], asset_defaults: asset_defaults || {}, fields: fields || [], is_active: true, is_assembly: true };
       this.assemblies.unshift(a); return a;
     },
-    updateAssemblyDef(id, patch) { const a = this.assemblyById(id); if (a) Object.assign(a, patch); },
+    updateAssemblyDef(id, patch) { const a = this.assemblyById(id); if (!a) return; if (patch && patch.name != null) { const nm = String(patch.name).trim(); if (nm && (this.assemblies || []).some((x) => x.id !== id && (x.name || '').trim().toLowerCase() === nm.toLowerCase())) return { error: 'A cart type / assembly named "' + nm + '" already exists — names must be unique.' }; } Object.assign(a, patch); return a; },
     addAssemblyType(name) { const id = 'at-' + uid('t'); this.assemblyTypes.push({ id, name: name || 'New Type' }); return id; },
     updateAssemblyType(id, name) { const t = (this.assemblyTypes || []).find((x) => x.id === id); if (t) t.name = name; },
     assemblyAutoFill(defId) {
