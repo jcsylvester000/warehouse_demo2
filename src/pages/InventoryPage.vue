@@ -10,6 +10,7 @@ import Badge from '@/components/ui/Badge.vue';
 import Btn from '@/components/ui/BaseButton.vue';
 import Modal from '@/components/ui/BaseModal.vue';
 import SearchPicker from '@/components/ui/SearchPicker.vue';
+import PickOrType from '@/components/ui/PickOrType.vue';
 import ReqTag from '@/components/ui/ReqTag.vue';
 
 import { useLightbox } from '@/composables/useLightbox';
@@ -464,13 +465,13 @@ const warehouseAssets = computed(() => {
             <div class="rounded-lg bg-violet-50/60 ring-1 ring-violet-100 p-3">
               <div class="text-xs font-semibold uppercase tracking-wide text-violet-700 mb-2">Asset auto-fill defaults <ReqTag ver="V4" code="AS-3" text="V4 Assemblies #3 — these defaults auto-fill the asset fields when a unit is built." /></div>
               <div class="grid grid-cols-3 gap-3">
-                <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><input v-model="asmForm.asset_defaults.cart_type" list="dlCT_a" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-                <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="asmForm.asset_defaults.key_type" list="dlKT_a" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-                <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="asmForm.asset_defaults.bp_device" list="dlBP_a" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+                <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><PickOrType v-model="asmForm.asset_defaults.cart_type" :options="store.cartTypeOptions" placeholder="— cart type —" /></label>
+                <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><PickOrType v-model="asmForm.asset_defaults.key_type" :options="store.keyTypeOptions" placeholder="— key type —" /></label>
+                <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><PickOrType v-model="asmForm.asset_defaults.bp_device" :options="store.bpDeviceOptions" placeholder="— BP device —" /></label>
               </div>
-              <datalist id="dlCT_a"><option v-for="o in store.cartTypeOptions" :key="o" :value="o" /></datalist>
-              <datalist id="dlKT_a"><option v-for="o in store.keyTypeOptions" :key="o" :value="o" /></datalist>
-              <datalist id="dlBP_a"><option v-for="o in store.bpDeviceOptions" :key="o" :value="o" /></datalist>
+              
+              
+              
               <p class="mt-1 text-[11px] text-slate-500">Suggestions come from your existing cart types — type your own to add a new one. Finalize the list any time in <b>Manage cart types</b>.</p>
             </div>
           </template>
@@ -526,16 +527,16 @@ const warehouseAssets = computed(() => {
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Which assembly are you building? <ReqTag ver="V6" code="AS-3" text="V6 Assemblies 3 — clearly choose which assembly type you are building." /></span><select v-model="build.assembly_id" @change="reloadBuildFields" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option v-for="a in store.assemblies" :key="a.id" :value="a.id">{{ a.name }}<template v-if="a.assembly_kind==='single'"> (single-item)</template></option></select></label>
         <div class="rounded-lg bg-slate-50 ring-1 ring-slate-100 p-3 text-xs text-slate-600">Buildable now: <b>{{ store.assemblyBuildable(buildDef.id) }}</b> · Unit cost (FIFO incl. landed): <b>{{ money(store.assemblyUnitCost(buildDef.id)) }}</b></div>
 
-        <datalist id="dlCT_b"><option v-for="o in store.cartTypeOptions" :key="o" :value="o" /></datalist>
-        <datalist id="dlKT_b"><option v-for="o in store.keyTypeOptions" :key="o" :value="o" /></datalist>
-        <datalist id="dlBP_b"><option v-for="o in store.bpDeviceOptions" :key="o" :value="o" /></datalist>
+        
+        
+        
         <!-- CART build -->
         <div v-if="buildDef.assembly_kind!=='single'" class="grid grid-cols-2 gap-3">
           <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Code <span class="text-rose-500">*</span> <ReqTag ver="V4" code="AS-4" text="V4 Assemblies #4 — Cart Code is mandatory and the unit carries all asset info." /></span><input v-model="build.code" placeholder="e.g. CART-V-0002" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Color</span><input v-model="build.cart_color" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><input v-model="build.fields.cart_type" list="dlCT_b" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="build.fields.key_type" list="dlKT_b" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-          <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="build.fields.bp_device" list="dlBP_b" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Color</span><PickOrType v-model="build.cart_color" :options="store.cartColorOptions" placeholder="— color —" /></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Type</span><PickOrType v-model="build.fields.cart_type" :options="store.cartTypeOptions" placeholder="— cart type —" /></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><PickOrType v-model="build.fields.key_type" :options="store.keyTypeOptions" placeholder="— key type —" /></label>
+          <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><PickOrType v-model="build.fields.bp_device" :options="store.bpDeviceOptions" placeholder="— BP device —" /></label>
           <label class="text-sm"><span class="block text-slate-600 mb-1">Tablet Number</span><input v-model="build.tablet_number" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         </div>
 
@@ -582,9 +583,9 @@ const warehouseAssets = computed(() => {
     <Modal v-if="showEditUnit" title="Edit assembled cart" sub="Update the asset details of a built cart." @close="showEditUnit=false">
       <div class="grid grid-cols-2 gap-3">
         <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Code *</span><input v-model="editUnit.code" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-        <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Color</span><input v-model="editUnit.cart_color" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-        <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><input v-model="editUnit.key_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-        <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><input v-model="editUnit.bp_device" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <label class="text-sm"><span class="block text-slate-600 mb-1">Cart Color</span><PickOrType v-model="editUnit.cart_color" :options="store.cartColorOptions" placeholder="— color —" /></label>
+        <label class="text-sm"><span class="block text-slate-600 mb-1">Key Type</span><PickOrType v-model="editUnit.key_type" :options="store.keyTypeOptions" placeholder="— key type —" /></label>
+        <label class="text-sm"><span class="block text-slate-600 mb-1">BP Device</span><PickOrType v-model="editUnit.bp_device" :options="store.bpDeviceOptions" placeholder="— BP device —" /></label>
         <label class="text-sm col-span-2"><span class="block text-slate-600 mb-1">Tablet Number</span><input v-model="editUnit.tablet_number" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
       </div>
       <div class="mt-4 pt-3 border-t border-slate-100">
@@ -624,7 +625,7 @@ const warehouseAssets = computed(() => {
           <button class="flex-1 h-9 rounded-lg text-sm font-medium border" :class="stock.dir==='remove'?'bg-rose-600 text-white border-rose-600':'border-slate-300 text-slate-600'" @click="stock.dir='remove'">Remove quantity</button>
         </div>
         <label class="text-sm block"><span class="block text-slate-600 mb-1">Quantity</span><input v-model="stock.qty" type="number" min="1" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">Reason <span class="text-rose-500">*</span></span><input v-model="stock.reason" placeholder="Required — e.g. cycle count, damage, correction" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Reason <span class="text-rose-500">*</span></span><PickOrType v-model="stock.reason" :options="store.stockReasonOptions" placeholder="— choose a reason —" /></label>
         <p class="text-xs text-slate-500">Adjusts total on hand. A reason is mandatory and recorded in the stock log.</p>
       </div>
       <template #footer><Btn variant="secondary" @click="showStock=false">Cancel</Btn><Btn @click="saveStock">Apply</Btn></template>
