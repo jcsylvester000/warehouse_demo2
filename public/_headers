@@ -1,0 +1,10 @@
+# Hashed build assets never change content for a given URL — cache them hard.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The HTML shell must always be revalidated so a new deploy is picked up
+# immediately and never points a browser at a stale (missing) chunk hash.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
