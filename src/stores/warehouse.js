@@ -458,6 +458,9 @@ export const useWarehouseStore = defineStore('warehouse', {
     assetTypeShipoutCols() { return (klass) => ((this.assetClassMeta(klass).cols) || []).filter((c) => (c[2] || 'build') === 'shipout'); },
     assetCodeExists(s) { return (code, exceptId) => { const c = String(code || '').trim().toLowerCase(); if (!c) return false; const inA = (s.assets || []).some((a) => a.id !== exceptId && String(a.code || '').trim().toLowerCase() === c); const inC = (s.carts || []).some((x) => String(x.code || '').trim().toLowerCase() === c); return inA || inC; }; },
     assetStatusOptions() { return ['In Warehouse', 'Deployed', 'Assigned', 'Out of Service', 'Incomplete', 'Retired', 'Return Pending', 'Returned', 'Active', 'Deactivated']; },
+    stateOptions() { return ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']; },
+    userStateOf() { return (name) => { const u = this.users.find((x) => x.name === name); if (!u || !u.address) return ''; const m = String(u.address).match(/,\s*([A-Z]{2})\s+\d{5}/); return m ? m[1] : ''; }; },
+    facilityStateOf() { return (name) => { const f = this.facilities.find((x) => x.name === name); if (!f) return ''; const src = f.city || f.address || ''; const m = String(src).match(/,\s*([A-Z]{2})(?:\s+\d{5})?/) || String(src).match(/\b([A-Z]{2})\b/); return m ? m[1] : ''; }; },
     assetCountByStatus(s) { return (klass, status) => {
       const fromAssets = (s.assets || []).filter((a) => a.klass !== 'cart' && (!klass || a.klass === klass) && a.status === status).length;
       const fromCarts = (!klass || klass === 'cart') ? (s.carts || []).map((c) => this.cartToAssetRow(c)).filter((a) => a.status === status).length : 0;

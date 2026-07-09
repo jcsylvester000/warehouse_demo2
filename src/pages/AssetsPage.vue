@@ -67,6 +67,7 @@ const editingId = ref(null);
 const form = reactive({ code: '', holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', condition: 'New', fields: {} });
 function blankFields() { const f = {}; (meta.value.cols || []).forEach((c) => { f[c[0]] = ''; }); return f; }
 function openAdd() { editingId.value = null; Object.assign(form, { code: store.nextAssetCode(tab.value), holder_type: '', holder: '', emp_state: '', status: 'In Warehouse', condition: 'New', fields: blankFields() }); showEdit.value = true; }
+function onHolderPick() { if (form.holder_type === 'employee') { const st = store.userStateOf(form.holder); if (st) form.emp_state = st; } else if (form.holder_type === 'facility') { form.emp_state = store.facilityStateOf(form.holder) || ''; } }
 function openEdit(a) { editingId.value = a.id; const f = {}; (meta.value.cols || []).forEach((c) => { f[c[0]] = a[c[0]] != null ? a[c[0]] : ''; }); Object.assign(form, { code: a.code || '', holder_type: a.holder_type || '', holder: a.holder || '', emp_state: a.emp_state || '', status: a.status || 'In Warehouse', condition: a.condition || 'New', fields: f }); showEdit.value = true; }
 function saveEdit() {
   if (!String(form.code).trim()) return toast.error('A Code / ID is required.');
@@ -100,6 +101,7 @@ function confirmReceipt(a) { const r = store.confirmAssetReceipt(a.id, a.holder)
 const showShipOut = ref(false);
 const shipForm = reactive({ id: null, code: '', holder: '', emp_state: '' });
 function openShipOut(a) { Object.assign(shipForm, { id: a.id, code: a.code, holder: '', emp_state: '' }); showShipOut.value = true; }
+function onShipEmpPick() { const st = store.userStateOf(shipForm.holder); if (st) shipForm.emp_state = st; }
 function doShipOut() {
   if (!shipForm.holder.trim()) return toast.error('Enter the employee this asset ships to.');
   const r = store.shipOutAsset(shipForm.id, { holder_type: 'employee', holder: shipForm.holder.trim(), emp_state: shipForm.emp_state.trim() });
@@ -354,8 +356,8 @@ const chips = computed(() => [
                 <option value="facility">Facility</option>
               </select>
             </label>
-            <label class="text-sm" :class="form.holder_type ? '' : 'opacity-40'"><span class="block text-slate-600 mb-1">{{ form.holder_type==='facility' ? 'Facility name' : 'Employee name' }}</span><input v-model="form.holder" :disabled="!form.holder_type" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm disabled:bg-slate-100" /></label>
-            <label class="text-sm" :class="form.holder_type==='employee' ? '' : 'opacity-40'"><span class="block text-slate-600 mb-1">State</span><input v-model="form.emp_state" :disabled="form.holder_type!=='employee'" placeholder="e.g. NJ" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm disabled:bg-slate-100" /></label>
+            <label class="text-sm" :class="form.holder_type ? '' : 'opacity-40'"><span class="block text-slate-600 mb-1">{{ form.holder_type==='facility' ? 'Facility' : 'Employee' }}</span><select v-model="form.holder" :disabled="!form.holder_type" @change="onHolderPick" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm disabled:bg-slate-100 bg-white"><option value="">{{ form.holder_type==='facility' ? '— choose facility —' : '— choose employee —' }}</option><option v-if="form.holder_type==='employee'" v-for="u in store.employeeList" :key="u.id" :value="u.name">{{ u.name }} · {{ u.role }}</option><option v-if="form.holder_type==='facility'" v-for="f in store.facilities" :key="f.id" :value="f.name">{{ f.name }}</option></select></label>
+            <label class="text-sm" :class="form.holder_type==='employee' ? '' : 'opacity-40'"><span class="block text-slate-600 mb-1">State</span><select v-model="form.emp_state" :disabled="form.holder_type!=='employee'" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm disabled:bg-slate-100 bg-white"><option value="">—</option><option v-for="stt in store.stateOptions" :key="stt" :value="stt">{{ stt }}</option></select></label>
           </div>
         </div>
         <div>
@@ -388,8 +390,8 @@ const chips = computed(() => [
     <!-- Ship a warehouse asset out to an employee -->
     <Modal v-if="showShipOut" title="Ship asset to employee" :sub="shipForm.code + ' → assign to an employee (status becomes Assigned; they confirm receipt).'" @close="showShipOut=false">
       <div class="space-y-3">
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">Employee <span class="text-rose-500">*</span></span><input v-model="shipForm.holder" placeholder="Employee name" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">State</span><input v-model="shipForm.emp_state" placeholder="e.g. NJ" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">Employee <span class="text-rose-500">*</span></span><select v-model="shipForm.holder" @change="onShipEmpPick" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-white"><option value="">— choose employee —</option><option v-for="u in store.employeeList" :key="u.id" :value="u.name">{{ u.name }} · {{ u.role }}</option></select></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">State</span><select v-model="shipForm.emp_state" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-white"><option value="">—</option><option v-for="stt in store.stateOptions" :key="stt" :value="stt">{{ stt }}</option></select></label>
         <p class="text-[11px] text-slate-500">Carts ship to facilities on a Sales Order; individual equipment assets attach to the employee here. The asset then shows under its holder and the employee can confirm receipt.</p>
       </div>
       <template #footer><Btn variant="secondary" @click="showShipOut=false">Cancel</Btn><Btn variant="success" @click="doShipOut">Ship to employee</Btn></template>
