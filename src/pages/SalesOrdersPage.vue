@@ -281,7 +281,7 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
             <label class="text-sm"><span class="block text-slate-600 mb-1">Delivery method</span><select v-model="form.delivery_method" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm"><option>Freight</option><option>Courier</option><option>Pickup</option></select></label>
           </div>
           <div v-if="form.ship_to_type==='address'" class="mt-3"><span class="block text-slate-600 mb-1 text-sm">New address (type to search)</span><AddressAutocomplete v-model="form.custom_address" @update:modelValue="form.shipping_address=form.custom_address" /></div>
-          <label v-else class="text-sm block mt-3"><span class="block text-slate-600 mb-1">Shipping address (auto)</span><input v-model="form.shipping_address" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-slate-50" /></label>
+          <label v-else class="text-sm block mt-3"><span class="block text-slate-600 mb-1">Shipping address (auto)</span><input v-model="form.shipping_address" readonly class="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed" /><span class="block text-[11px] text-slate-400 mt-1">Pulled from the recipient/facility. To type a different address, choose “A new address (lookup)” above.</span></label>
           <label class="text-sm block mt-3 w-48"><span class="block text-slate-600 mb-1">Expected date</span><input v-model="form.expected_date" type="date" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
         </div>
 

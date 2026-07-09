@@ -106,6 +106,7 @@ function recordDeposit(po) { const amt = Number(po.deposit) || 0; if (amt <= 0) 
 /* ---------- send / resend ---------- */
 const showSend = ref(false); const sendPO = ref(null); const sendForm = reactive({ to: '', cc: '', resend: false });
 function openSend(po, resend) { sendPO.value = po; const v = store.vendors.find((x) => x.id === po.vendor_id); sendForm.to = v ? v.email : ''; sendForm.cc = ''; sendForm.resend = !!resend; showSend.value = true; }
+function addCc(email) { const cur = (sendForm.cc || '').split(',').map((x) => x.trim()).filter(Boolean); if (!cur.includes(email)) cur.push(email); sendForm.cc = cur.join(', '); }
 function doSend() { store.sendPoToVendor(sendPO.value, sendForm.cc.trim(), sendForm.resend); toast.success('PO ' + sendPO.value.po_number + (sendForm.resend ? ' re-sent' : ' sent') + ' to vendor.'); showSend.value = false; }
 
 /* ---------- receive (landed from PO + optional asset prompt) ---------- */
@@ -354,7 +355,7 @@ onMounted(() => { const d = store.takePoDraft(); if (d && d.length) { openForm()
     <Modal v-if="showSend" :title="(sendForm.resend ? 'Resend ' : 'Send ') + (sendPO?sendPO.po_number:'') + ' to vendor'" sub="Simulated email — recorded in the Sent log. Landed costs are withheld (internal only)." @close="showSend=false">
       <div class="space-y-3">
         <label class="text-sm block"><span class="block text-slate-600 mb-1">To (vendor)</span><input v-model="sendForm.to" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm bg-slate-50" readonly /></label>
-        <label class="text-sm block"><span class="block text-slate-600 mb-1">CC (comma-separated)</span><input v-model="sendForm.cc" placeholder="cfo@carease.com, ops@carease.com" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /></label>
+        <label class="text-sm block"><span class="block text-slate-600 mb-1">CC (comma-separated)</span><input v-model="sendForm.cc" list="po-cc-opts" placeholder="cfo@carease.com, ops@carease.com" class="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm" /><datalist id="po-cc-opts"><option v-for="e in store.poCcOptions" :key="e" :value="e" /></datalist><div class="flex flex-wrap gap-1 mt-1"><button type="button" v-for="e in store.poCcOptions" :key="e" @click="addCc(e)" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600">+ {{ e }}</button></div></label>
         <p class="text-xs text-slate-500">Sends the PO (items, quantities, prices). Internal landed costs are <b>not</b> included.</p>
       </div>
       <template #footer><Btn variant="secondary" @click="showSend=false">Cancel</Btn><Btn @click="doSend">{{ sendForm.resend ? 'Resend PO' : 'Send PO' }}</Btn></template>
