@@ -18,6 +18,7 @@ export function useBackendSync(store) {
         store.applyDirectorySeed(); // ensure mock directory exists even in a pre-existing saved workspace
         store.applyScenarioSeed(); // ensure testability scenario data exists (combine, backorders, partial receipts)
         store.applyScenarioSeedP2(); // P2 testability data (bins, tickets, employee role, employee-held & terminated assets)
+        store.applyReplenishSeed(); // top up drained cart-component stock so builds/backorder work
       }
       version = v || 0;
       ready = true;

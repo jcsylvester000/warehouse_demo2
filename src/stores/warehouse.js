@@ -935,6 +935,34 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (n) this.logActivity('Scenario seed P2 applied — added ' + n + ' record(s): bins, tickets, Warehouse Employee role, employee-held & terminated assets');
       return n;
     },
+    // Replenish seed (testability): top up cart-component stock so carts can be built even after the shared
+    // demo DB has been drained by prior testing. Fixes "Not enough <part> in stock" blocking VS8/Edan/Accutor
+    // builds and, by extension, the partial-ship/backorder flow. Idempotent via migrations.replenishV1;
+    // tops up to a target only when below it (never reduces stock, never double-adds on reload).
+    applyReplenishSeed() {
+      this.migrations = this.migrations || {};
+      if (this.migrations.replenishV1) return 0;
+      // all items consumed by the cart recipes (plus laptop/gameshow sources) — keep a healthy buffer.
+      const targets = {
+        'i-edancart': 25, 'i-key': 40, 'i-basket2': 40, 'i-bpdev': 25, 'i-bphose': 40,
+        'i-spo2': 40, 'i-tab2': 30, 'i-tab': 30, 'i-accutor': 20, 'i-laptop': 15, 'i-gameshow': 15,
+        'i-cart': 20, 'i-basket': 40, 'i-mount': 25, 'i-mdm': 20,
+      };
+      let n = 0;
+      Object.keys(targets).forEach((id) => {
+        const it = this.itemById ? this.itemById(id) : (this.items || []).find((x) => x.id === id);
+        if (!it) return;
+        const have = Number(it.qty_onhand || 0);
+        const want = targets[id];
+        if (have < want && typeof this.adjustStock === 'function') {
+          this.adjustStock(it, want - have, 'Replenish (testability seed)');
+          n++;
+        }
+      });
+      this.migrations.replenishV1 = true;
+      if (n) this.logActivity('Replenish seed applied — topped up ' + n + ' component item(s) so carts can be built');
+      return n;
+    },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },
