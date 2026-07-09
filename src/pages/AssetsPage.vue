@@ -265,7 +265,24 @@ const chips = computed(() => [
               <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
               <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button v-if="tab!=='cart' && !a.holder_type && (a.status==='In Warehouse' || a.status==='Available')" class="text-xs font-semibold text-blue-700 hover:underline mr-2" @click="openShipOut(a)">Ship out</button><button v-if="tab!=='cart' && a.status==='Returned'" class="text-xs font-semibold text-violet-700 hover:underline mr-2" @click="returnToWh(a)">Return to warehouse</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
-            <tr v-if="!total"><td :colspan="5 + meta.cols.length" class="px-3 py-8 text-center text-slate-400">No matching assets.</td></tr>
+            <tr v-if="!total"><td :colspan="5 + meta.cols.length" class="px-3 py-10">
+              <div class="flex flex-col items-center justify-center text-center gap-2">
+                <div class="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl">📦</div>
+                <template v-if="classAssets.length && !filtered.length">
+                  <p class="text-sm font-medium text-slate-600">No {{ meta.label }} match your filters</p>
+                  <p class="text-xs text-slate-400">Try clearing the search or status/holder filters.</p>
+                  <Btn size="sm" variant="secondary" class="mt-1" @click="resetView">Clear filters</Btn>
+                </template>
+                <template v-else>
+                  <p class="text-sm font-medium text-slate-600">No {{ meta.label }} yet</p>
+                  <p class="text-xs text-slate-400">Build one from a recipe, or import existing units in bulk.</p>
+                  <div class="flex items-center gap-2 mt-1">
+                    <Btn size="sm" @click="openBuildAsset">+ Build asset</Btn>
+                    <Btn size="sm" variant="secondary" @click="openImport">Import</Btn>
+                  </div>
+                </template>
+              </div>
+            </td></tr>
           </tbody>
         </table>
       </div>
