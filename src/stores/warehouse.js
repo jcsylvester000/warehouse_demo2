@@ -941,26 +941,38 @@ export const useWarehouseStore = defineStore('warehouse', {
     // tops up to a target only when below it (never reduces stock, never double-adds on reload).
     applyReplenishSeed() {
       this.migrations = this.migrations || {};
-      if (this.migrations.replenishV1) return 0;
-      // all items consumed by the cart recipes (plus laptop/gameshow sources) — keep a healthy buffer.
-      const targets = {
-        'i-edancart': 25, 'i-key': 40, 'i-basket2': 40, 'i-bpdev': 25, 'i-bphose': 40,
-        'i-spo2': 40, 'i-tab2': 30, 'i-tab': 30, 'i-accutor': 20, 'i-laptop': 15, 'i-gameshow': 15,
-        'i-cart': 20, 'i-basket': 40, 'i-mount': 25, 'i-mdm': 20,
-      };
+      // replenishV2: dynamic — walk EVERY cart/assembly recipe's expanded components (groups resolve to items)
+      // and top each consumed item up to a healthy buffer, so builds work regardless of which custom cart
+      // types exist in the live workspace. Idempotent (only tops up below target; never reduces).
+      if (this.migrations.replenishV2) return 0;
+      const need = {};
+      const bump = (id, q) => { need[id] = Math.max(need[id] || 0, q); };
+      // per-build component needs from every assembly recipe
+      (this.assemblies || []).forEach((a) => {
+        try {
+          const exp = this.expandAssembly(a.id, 1) || {};
+          Object.keys(exp).forEach((k) => bump(k, exp[k]));
+        } catch (e) { /* skip a bad recipe */ }
+      });
+      // also any asset type that is "built from" a single item or group
+      (this.assetClasses || []).forEach((c) => {
+        if (c.source_kind === 'item' && c.source_id) bump(c.source_id, 1);
+        else if (c.source_kind === 'group' && c.source_id) {
+          try { const exp = this.expandGroup(c.source_id, 1) || {}; Object.keys(exp).forEach((k) => bump(k, exp[k])); } catch (e) { /* skip */ }
+        }
+      });
+      // top each needed item up so ~10 of the biggest consumer can be built
+      const BUFFER = 12;
       let n = 0;
-      Object.keys(targets).forEach((id) => {
+      Object.keys(need).forEach((id) => {
         const it = this.itemById ? this.itemById(id) : (this.items || []).find((x) => x.id === id);
         if (!it) return;
         const have = Number(it.qty_onhand || 0);
-        const want = targets[id];
-        if (have < want && typeof this.adjustStock === 'function') {
-          this.adjustStock(it, want - have, 'Replenish (testability seed)');
-          n++;
-        }
+        const want = need[id] * BUFFER;
+        if (have < want && typeof this.adjustStock === 'function') { this.adjustStock(it, want - have, 'Replenish (testability seed)'); n++; }
       });
-      this.migrations.replenishV1 = true;
-      if (n) this.logActivity('Replenish seed applied — topped up ' + n + ' component item(s) so carts can be built');
+      this.migrations.replenishV2 = true;
+      if (n) this.logActivity('Replenish seed applied — topped up ' + n + ' component item(s) across all cart recipes so carts can be built');
       return n;
     },
     advancePoProgress(po, stage) { po.progress = stage; },
