@@ -1507,11 +1507,30 @@ export const useWarehouseStore = defineStore('warehouse', {
     queuePO(itemIds) { this.poDraft = (itemIds || []).slice(); },
     takePoDraft() { const d = (this.poDraft || []).slice(); this.poDraft = []; return d; },
 
-    resetDemo() { this.$patch(seed()); try { sessionStorage.removeItem(SKEY); } catch (e) { /* ignore */ } },
+    resetDemo() { replaceStoreState(this, seed()); try { sessionStorage.removeItem(SKEY); } catch (e) { /* ignore */ } },
     // History: restore the whole workspace to an earlier saved version (then it re-saves as a new version — non-destructive).
-    restoreState(state, version) { if (!state || typeof state !== 'object') return; this.$patch(state); this.logActivity('⤺ Workspace restored to version ' + (version != null ? version : 'earlier') + ''); },
+    // Full REPLACE (not a merge): a snapshot is a point-in-time rollback, so anything created AFTER the snapshot
+    // (e.g. a freshly built cart/asset) must disappear. $patch merges and would leave post-snapshot arrays behind,
+    // so we layer the snapshot over a fresh seed base and blow away any current key the snapshot doesn't carry.
+    restoreState(state, version) { if (!state || typeof state !== 'object') return; replaceStoreState(this, { ...seed(), ...state, counters: { ...seed().counters, ...(state.counters || {}) } }); this.logActivity('⤺ Workspace restored to version ' + (version != null ? version : 'earlier') + ''); },
   },
 });
+
+// Full state REPLACE for restore/reset. Pinia's $patch only MERGES, so any key present in the
+// live store but absent from `target` would survive a restore (this is exactly how a post-snapshot
+// built asset used to linger). We first blank every current key the target doesn't include, then
+// $patch the target on — giving a clean point-in-time rollback across the whole workspace.
+export function replaceStoreState(store, target) {
+  if (!target || typeof target !== 'object') return;
+  const cleared = {};
+  for (const k of Object.keys(store.$state)) {
+    if (!Object.prototype.hasOwnProperty.call(target, k)) {
+      const cur = store.$state[k];
+      cleared[k] = Array.isArray(cur) ? [] : (cur && typeof cur === 'object' ? {} : null);
+    }
+  }
+  store.$patch({ ...cleared, ...target });
+}
 
 export function persistWarehouse(store) {
   let timer = null;
