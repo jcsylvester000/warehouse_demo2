@@ -1386,7 +1386,7 @@ export const useWarehouseStore = defineStore('warehouse', {
     },
 
     /* Users (warehouse-scoped) */
-    addUser({ name, role, program, facility }) { this.users.push({ id: uid('u'), name, role: role || 'Warehouse Employee', program: program || 'Warehouse', facility: facility || 'All facilities', email: '', address: '' }); },
+    addUser({ name, role, program, facility, title }) { const r = role || 'Warehouse Employee'; const TITLES = { 'Regional Director':'Regional Director','Provider':'Provider','Care Companion':'Care Companion','Warehouse Manager':'Warehouse Manager','Warehouse Employee':'Warehouse Associate' }; this.users.push({ id: uid('u'), name, role: r, title: title || TITLES[r] || r, program: program || 'Warehouse', facility: facility || 'All facilities', email: '', address: '' }); },
     removeUser(id) { const i = this.users.findIndex((u) => u.id === id); if (i > -1) this.users.splice(i, 1); },
     /* Roles & permissions */
     cycleGrant(capId) { const order = ['yes', 'partial', 'confirm', 'no']; const cap = this.capabilities.find((c) => c.id === capId); if (cap) cap.grant = order[(order.indexOf(cap.grant) + 1) % order.length]; },
