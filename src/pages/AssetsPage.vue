@@ -25,6 +25,23 @@ const pageSize = ref(10);
 const pageOptions = [10, 20, 30, 40, 50];
 const page = ref(1);
 
+// ---- Column picker: hide optional (per-class) columns; ID/Holder/Status/Condition always stay ----
+const showColsMenu = ref(false);
+const LS_KEY = 'wms_assets_hidden_cols';
+const hiddenCols = reactive(loadHidden());
+function loadHidden() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function saveHidden() { try { localStorage.setItem(LS_KEY, JSON.stringify(hiddenCols)); } catch (e) { /* ignore */ } }
+const hiddenForTab = computed(() => new Set(hiddenCols[tab.value] || []));
+const visibleCols = computed(() => (meta.value.cols || []).filter((c) => !hiddenForTab.value.has(c[0])));
+const hiddenCount = computed(() => (meta.value.cols || []).length - visibleCols.value.length);
+function toggleCol(key) {
+  const cur = new Set(hiddenCols[tab.value] || []);
+  if (cur.has(key)) cur.delete(key); else cur.add(key);
+  hiddenCols[tab.value] = Array.from(cur);
+  saveHidden();
+}
+function showAllCols() { hiddenCols[tab.value] = []; saveHidden(); }
+
 function resetView() { search.value = ''; statusFilter.value = ''; holderFilter.value = ''; page.value = 1; }
 function pickTab(id) { tab.value = id; resetView(); }
 
@@ -232,6 +249,20 @@ const chips = computed(() => [
         <Btn size="sm" @click="openBuildAsset">+ Build asset</Btn>
         <Btn variant="secondary" size="sm" @click="openTypes">Manage asset types</Btn>
         <Btn variant="secondary" size="sm" @click="openImport">Import</Btn>
+        <div v-if="(meta.cols||[]).length" class="relative">
+          <Btn variant="secondary" size="sm" @click="showColsMenu=!showColsMenu">Columns<span v-if="hiddenCount" class="ml-1 text-[10px] text-slate-400">({{ hiddenCount }} hidden)</span></Btn>
+          <div v-if="showColsMenu" class="fixed inset-0 z-10" @click="showColsMenu=false"></div>
+          <div v-if="showColsMenu" class="absolute right-0 mt-1 z-20 w-56 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg p-2">
+            <div class="flex items-center justify-between px-1 pb-1 mb-1 border-b border-slate-100">
+              <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Show columns</span>
+              <button class="text-[11px] font-semibold text-indigo-600 hover:underline" @click="showAllCols">Show all</button>
+            </div>
+            <label v-for="c in meta.cols" :key="c[0]" class="flex items-center gap-2 px-1 py-1 text-sm rounded hover:bg-slate-50 cursor-pointer">
+              <input type="checkbox" :checked="!hiddenForTab.has(c[0])" @change="toggleCol(c[0])" />
+              <span class="text-slate-700">{{ c[1] }}</span>
+            </label>
+          </div>
+        </div>
         <Btn v-if="tab!=='cart'" size="sm" @click="openAdd">+ Build {{ meta.label.replace(/s$/, '') }}</Btn>
         <span v-else class="text-xs text-slate-400 self-center">Build carts with <span class="font-semibold text-slate-500">+ Build asset</span> above · cart recipes live in Inventory</span>
       </div>
@@ -244,7 +275,7 @@ const chips = computed(() => [
               <th class="text-left px-3 py-2">Holder</th>
               <th class="text-left px-3 py-2">Status</th>
               <th class="text-left px-3 py-2">Condition</th>
-              <th v-for="c in meta.cols" :key="c[0]" class="text-left px-3 py-2">{{ c[1] }}</th>
+              <th v-for="c in visibleCols" :key="c[0]" class="text-left px-3 py-2">{{ c[1] }}</th>
               <th class="px-3 py-2"></th>
             </tr>
           </thead>
@@ -262,10 +293,10 @@ const chips = computed(() => [
                 </select>
               </td>
               <td class="px-3 py-2"><select v-if="tab!=='cart'" :value="a.condition || 'New'" @change="onCondition(a, $event)" class="h-7 px-1.5 rounded border border-slate-200 text-xs"><option>New</option><option>Used</option></select><Badge v-else tone="slate">{{ a.condition || 'New' }}</Badge></td>
-              <td v-for="c in meta.cols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
+              <td v-for="c in visibleCols" :key="c[0]" class="px-3 py-2 text-slate-600">{{ cell(a, c[0]) }}</td>
               <td class="px-3 py-2 text-right whitespace-nowrap"><button v-if="a._cart && a.refurbished && !a.ready" class="text-xs font-semibold text-amber-700 hover:underline mr-2" @click="markReady(a)">Mark ready</button><button v-if="a.holder_type==='employee' && a.status==='Assigned' && !a.received" class="text-xs font-semibold text-emerald-700 hover:underline mr-2" @click="confirmReceipt(a)">Confirm receipt</button><button v-if="tab!=='cart' && !a.holder_type && (a.status==='In Warehouse' || a.status==='Available')" class="text-xs font-semibold text-blue-700 hover:underline mr-2" @click="openShipOut(a)">Ship out</button><button v-if="tab!=='cart' && a.status==='Returned'" class="text-xs font-semibold text-violet-700 hover:underline mr-2" @click="returnToWh(a)">Return to warehouse</button><button class="text-xs font-semibold text-indigo-600 hover:underline" @click="openEdit(a)">Edit</button></td>
             </tr>
-            <tr v-if="!total"><td :colspan="5 + meta.cols.length" class="px-3 py-10">
+            <tr v-if="!total"><td :colspan="5 + visibleCols.length" class="px-3 py-10">
               <div class="flex flex-col items-center justify-center text-center gap-2">
                 <div class="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl">📦</div>
                 <template v-if="classAssets.length && !filtered.length">
