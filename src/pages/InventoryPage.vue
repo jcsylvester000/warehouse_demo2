@@ -268,7 +268,19 @@ const warehouseAssets = computed(() => {
                 <td class="px-5 py-3 text-slate-600">{{ o.bin }}</td>
                 <td class="px-5 py-3 text-right"><span class="text-xs text-indigo-600 font-semibold">Open →</span></td>
               </tr>
-              <tr v-if="!list.length"><td colspan="5" class="px-5 py-10 text-center text-slate-400">No items match.</td></tr>
+              <tr v-if="!list.length"><td colspan="5" class="px-5 py-12">
+              <div class="flex flex-col items-center justify-center text-center gap-2">
+                <div class="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl">📦</div>
+                <template v-if="search || invFilter!=='all'">
+                  <p class="text-sm font-medium text-slate-600">No items match your search or filter</p>
+                  <Btn size="sm" variant="secondary" class="mt-1" @click="search=''; invFilter='all'">Clear</Btn>
+                </template>
+                <template v-else>
+                  <p class="text-sm font-medium text-slate-600">No items yet</p>
+                  <p class="text-xs text-slate-400">Add your first item or group with + Add Item.</p>
+                </template>
+              </div>
+            </td></tr>
             </tbody>
           </table>
         </div>
@@ -340,6 +352,7 @@ const warehouseAssets = computed(() => {
           <Btn variant="soft-primary" size="sm" @click="openStock(detailItem)">Adjust stock</Btn>
           <Btn variant="ghost" size="sm" @click="openLots(detailItem)">View lots</Btn>
           <Btn variant="ghost" size="sm" @click="openLogs(detailItem)">View logs</Btn>
+          <Btn variant="soft-primary" size="sm" @click="orderItem(detailItem)" title="Start a Purchase Order pre-filled with this item">Reorder →</Btn>
           <Btn v-if="detailItem.is_active" variant="soft-danger" size="sm" @click="deactivate">Deactivate</Btn>
         </div>
       </div>

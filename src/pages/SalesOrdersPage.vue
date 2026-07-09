@@ -41,7 +41,18 @@ const confirmRegional = computed(() => { const so = confirmSOref.value; if (!so)
 function openConfirm(so) { confirmSOref.value = so; showConfirmDlg.value = true; }
 function doConfirm(actor) { const so = confirmSOref.value; if (!so) return; store.confirmSo(so, actor); toast.success(so.so_number + ' confirmed by ' + actor.name + ' (' + actor.role + ') — shipment queued.'); showConfirmDlg.value = false; }
 function completeSo(so) { store.completeSalesOrder(so); toast.success(so.so_number + ' completed — delivered (proof of delivery recorded).'); }
-function reverse(so) { store.reverseShip(so); toast.info(so.so_number + ' shipment reversed — stock returned.'); }
+const reverseConfirmId = ref(null); let _revTimer = null;
+function reverse(so) {
+  if (reverseConfirmId.value !== so.id) {
+    reverseConfirmId.value = so.id;
+    clearTimeout(_revTimer);
+    _revTimer = setTimeout(() => { reverseConfirmId.value = null; }, 4000);
+    return;
+  }
+  clearTimeout(_revTimer); reverseConfirmId.value = null;
+  store.reverseShip(so);
+  toast.info(so.so_number + ' shipment reversed — stock returned.');
+}
 function shipBackorder(so) { if (so.status === 'backorder') so.status = 'in_progress'; openShip(so); }
 
 const facUnderRegional = (rid) => store.facilities.filter((f) => f.regional_id === rid);
@@ -253,9 +264,23 @@ const showShipments = ref(false); const showEmails = ref(false); const showDocs 
                 <Btn v-if="so.status==='draft'||so.status==='backorder'" variant="soft-primary" size="sm" @click="openConfirm(so)">Confirm</Btn>
                 <Btn v-if="so.status==='in_progress'" variant="soft-primary" size="sm" @click="openShip(so)">Ship</Btn>
                 <Btn v-else-if="so.status==='shipped'" variant="soft-success" size="sm" @click="completeSo(so)">Complete</Btn>
-                <Btn v-if="['shipped','completed'].includes(so.status) && so.items.some(l=>l.qty_shipped>0)" variant="ghost" size="sm" @click="reverse(so)">Reverse</Btn>
+                <Btn v-if="['shipped','completed'].includes(so.status) && so.items.some(l=>l.qty_shipped>0)" :variant="reverseConfirmId===so.id ? 'soft-danger' : 'ghost'" size="sm" @click.stop="reverse(so)">{{ reverseConfirmId===so.id ? 'Confirm reverse' : 'Reverse' }}</Btn>
               </td>
             </tr>
+            <tr v-if="!visibleSOs.length"><td colspan="7" class="px-5 py-12">
+              <div class="flex flex-col items-center justify-center text-center gap-2">
+                <div class="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl">📋</div>
+                <template v-if="soFilter==='all'">
+                  <p class="text-sm font-medium text-slate-600">No sales orders yet</p>
+                  <p class="text-xs text-slate-400">Create one with + New SO to ship to a recipient.</p>
+                </template>
+                <template v-else>
+                  <p class="text-sm font-medium text-slate-600">No {{ (SO_FILTERS.find(f=>f[0]===soFilter)||[])[1] || soFilter }} orders</p>
+                  <p class="text-xs text-slate-400">Nothing is in this state right now.</p>
+                  <Btn size="sm" variant="secondary" class="mt-1" @click="soFilter='all'">Show all orders</Btn>
+                </template>
+              </div>
+            </td></tr>
           </tbody>
         </table>
       </div>
