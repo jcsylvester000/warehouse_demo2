@@ -19,6 +19,7 @@ export function useBackendSync(store) {
         store.applyScenarioSeed(); // ensure testability scenario data exists (combine, backorders, partial receipts)
         store.applyScenarioSeedP2(); // P2 testability data (bins, tickets, employee role, employee-held & terminated assets)
         store.applyReplenishSeed(); // top up drained cart-component stock so builds/backorder work
+        store.applyScenarioFixSeed(); // repoint seeded SO lines to the live VS8 cart recipe id
       }
       version = v || 0;
       ready = true;

@@ -975,6 +975,43 @@ export const useWarehouseStore = defineStore('warehouse', {
       if (n) this.logActivity('Replenish seed applied — topped up ' + n + ' component item(s) across all cart recipes so carts can be built');
       return n;
     },
+    // Corrective seed (testability): the P1 scenario SOs referenced the base-seed VS8 recipe id ('asm-vs8'),
+    // but a workspace may have its own user-created "VS8 cart" type (different id) that the built units belong to.
+    // Repoint each seeded SO's assembly line to whichever VS8 recipe actually has buildable/built units, so the
+    // Ship modal sees Available > 0 and the partial-ship/backorder flow works. Idempotent via migrations.scenarioFixV1.
+    applyScenarioFixSeed() {
+      this.migrations = this.migrations || {};
+      if (this.migrations.scenarioFixV1) return 0;
+      // Resolve the "live" VS8 recipe id. The built units are the source of truth: find the assembly_id whose
+      // recipe is named VS8-ish, preferring one that ALREADY has in-warehouse carts (so Available > 0). This
+      // handles a user-created "VS8 cart" type whose id differs from the base seed's 'asm-vs8'.
+      const vs8CartAsmId = (() => {
+        const vs8Recipes = (this.assemblies || []).filter((a) => /vs8/i.test(a.name || ''));
+        // 1) a VS8 recipe that has at least one warehouse cart built from it
+        const withStock = vs8Recipes.find((a) => (this.carts || []).some((c) => c.assembly_id === a.id && c.location === 'Warehouse'));
+        if (withStock) return withStock.id;
+        // 2) a VS8 recipe that any cart references at all
+        const referenced = vs8Recipes.find((a) => (this.carts || []).some((c) => c.assembly_id === a.id));
+        if (referenced) return referenced.id;
+        // 3) any VS8-named recipe
+        if (vs8Recipes.length) return vs8Recipes[0].id;
+        return null;
+      })();
+      if (!vs8CartAsmId) { this.migrations.scenarioFixV1 = true; return 0; }
+      let n = 0;
+      const seedSoIds = ['seed-so-combineA', 'seed-so-combineB', 'seed-so-other', 'seed-so-backorder'];
+      (this.salesOrders || []).forEach((so) => {
+        if (!seedSoIds.includes(so.id)) return;
+        (so.items || []).forEach((l) => {
+          if (l.kind === 'assembly' && l.assembly_id && l.assembly_id !== vs8CartAsmId && /vs8/i.test(l.name || 'VS8')) {
+            l.assembly_id = vs8CartAsmId; n++;
+          }
+        });
+      });
+      this.migrations.scenarioFixV1 = true;
+      if (n) this.logActivity('Scenario fix applied — repointed ' + n + ' seeded SO line(s) to the live VS8 cart recipe so they can ship');
+      return n;
+    },
     advancePoProgress(po, stage) { po.progress = stage; },
     setPoStatus(po, stage) { po.progress = stage; },           // R2 PO #2: dropdown sets status
     updatePO(id, patch) { const i = this.purchaseOrders.findIndex((p) => p.id === id); if (i > -1) this.purchaseOrders[i] = { ...this.purchaseOrders[i], ...patch }; },
